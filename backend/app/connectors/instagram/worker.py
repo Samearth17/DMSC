@@ -37,6 +37,74 @@ def _safe_raw(post):
     return _coerce(raw)
 
 
+def _iter_hashtag_posts(loader, tag, limit=50):
+    """Safely extract Post objects from Instagram hashtag feed, supporting modern layout formats (medias, clips, fill_items) and pagination."""
+    import instaloader as il
+    tag = str(tag).lstrip('#').strip()
+    if not tag:
+        return
+    seen_ids = set()
+    try:
+        hashtag = il.Hashtag.from_name(loader.context, tag)
+    except Exception:
+        return
+
+    node = getattr(hashtag, "_node", {})
+    # Modern Instagram hashtags place posts in 'top' sections ('recent' tab was deprecated by Instagram)
+    top = node.get("top") or node.get("recent") or {}
+
+    while True:
+        sections = top.get("sections", []) if isinstance(top, dict) else []
+        for s in sections:
+            if not isinstance(s, dict):
+                continue
+            lc = s.get("layout_content", {})
+            if not isinstance(lc, dict):
+                continue
+            media_nodes = []
+            if "medias" in lc and isinstance(lc["medias"], list):
+                media_nodes.extend(item.get("media") for item in lc["medias"] if isinstance(item, dict) and item.get("media"))
+            for key in ("one_by_two_item", "two_by_two_item", "one_by_two_left", "one_by_two_right"):
+                sub = lc.get(key)
+                if isinstance(sub, dict) and "clips" in sub:
+                    clips_items = sub["clips"].get("items", [])
+                    if isinstance(clips_items, list):
+                        media_nodes.extend(item.get("media") for item in clips_items if isinstance(item, dict) and item.get("media"))
+            if "fill_items" in lc and isinstance(lc["fill_items"], list):
+                media_nodes.extend(item.get("media") for item in lc["fill_items"] if isinstance(item, dict) and item.get("media"))
+
+            for m in media_nodes:
+                mid = str(m.get("id") or m.get("pk") or "")
+                if mid and mid in seen_ids:
+                    continue
+                if mid:
+                    seen_ids.add(mid)
+                try:
+                    p = il.Post.from_iphone_struct(loader.context, m)
+                    if hasattr(p, "_node") and isinstance(p._node, dict):
+                        if "edge_media_to_comment" not in p._node and "comments" in p._node:
+                            p._node["edge_media_to_comment"] = {"count": p._node["comments"]}
+                        if "edge_media_preview_like" not in p._node and "like_count" in p._node:
+                            p._node["edge_media_preview_like"] = {"count": p._node["like_count"]}
+                    yield p
+                    if len(seen_ids) >= limit:
+                        return
+                except Exception:
+                    continue
+
+        max_id = top.get("next_max_id") if isinstance(top, dict) else None
+        more = top.get("more_available") if isinstance(top, dict) else False
+        if not max_id or not more or len(seen_ids) >= limit:
+            break
+
+        try:
+            resp = loader.context.get_json("api/v1/tags/web_info/", params={"tag_name": tag, "max_id": max_id})
+            data = resp.get("data") if isinstance(resp, dict) else {}
+            top = (data.get("top") or data.get("recent") or {}) if isinstance(data, dict) else {}
+        except Exception:
+            break
+
+
 def collect(data):
     import instaloader as il
     from instaloader import exceptions as ex
@@ -50,19 +118,39 @@ def collect(data):
         request_timeout=min(policy["timeout_seconds"],20),rate_controller=StopOn429)
     records, warnings, notes = [], [], []
     method = "hashtag" if query["dimension"] == "hashtags" else "profile_search"
+    max_items = int(data.get('limit')) if data.get('operation') == 'scrape' and data.get('limit') else policy["items_per_query"]
     def append(post):
         boundary=data.get('incremental',{}).get('last_item_id')
         if boundary and str(post.mediaid)==str(boundary):
             if 'incremental_boundary_reached' not in notes:
                 notes.append('incremental_boundary_reached')
             return False
-        if len(records) >= policy["items_per_query"]:
+        if len(records) >= max_items:
             return False
+        node = getattr(post, "_node", {}) if isinstance(getattr(post, "_node", None), dict) else {}
+        likes = (node.get("edge_media_preview_like", {}).get("count")
+                 if isinstance(node.get("edge_media_preview_like"), dict)
+                 else node.get("like_count"))
+        if likes is None:
+            try:
+                likes = post.likes
+            except Exception:
+                likes = 0
+
+        comments = (node.get("edge_media_to_comment", {}).get("count")
+                    if isinstance(node.get("edge_media_to_comment"), dict)
+                    else node.get("comments"))
+        if comments is None:
+            try:
+                comments = post.comments
+            except Exception:
+                comments = 0
+
         records.append({"id":str(post.mediaid),"shortcode":post.shortcode,"owner_id":str(post.owner_id),
             "username":post.owner_username,"caption":post.caption,
             "published_at":post.date_utc.replace(tzinfo=timezone.utc).isoformat(),
             "media":[{"type":"video" if post.is_video else "image","url":post.url}],
-            "engagement":{"likes":post.likes,"comments":post.comments},
+            "engagement":{"likes":likes,"comments":comments},
             "raw_node":_safe_raw(post),"discovery_method":method})
         return True
     try:
@@ -122,25 +210,15 @@ def collect(data):
 
             elif scrape_type == 'hashtag':
                 tag = target.lstrip('#').strip()
+                method = "hashtag"
                 try:
-                    hashtag = il.Hashtag.from_name(loader.context, tag)
-                    hashtag_node = getattr(hashtag, "_node", {})
-                    recent = hashtag_node.get("recent")
-                    if isinstance(recent, dict):
-                        if "more_available" not in recent:
-                            recent["more_available"] = False
-                        if "next_max_id" not in recent:
-                            recent["next_max_id"] = None
-                    for post in islice(hashtag.get_posts(), limit):
+                    for post in _iter_hashtag_posts(loader, tag, limit):
                         if not append(post):
                             break
-                except KeyError as exc:
-                    if str(exc) == "'more_available'":
-                        if not records:
-                            return {"error": "instagram_hashtag_api_incompatible", "notes": ["Instagram hashtag response is incompatible with current Instaloader. Use profile queries instead."]}
-                        warnings.append("instagram_hashtag_api_incompatible")
-                    else:
-                        raise
+                    if not records:
+                        warnings.append(f'No posts found for #{tag}. The hashtag may be inactive or restricted.')
+                except Exception as exc:
+                    warnings.append(f'Hashtag collection error: {exc}')
 
             return {'profile': profile_info, 'records': records, 'warnings': warnings, 'notes': notes}
         if data.get('operation') == 'profiles':
@@ -164,58 +242,13 @@ def collect(data):
             return {'profiles':profiles,'scope':'At most 20 discovered public profiles; follower filtering is local, not global search.'}
         if method == "hashtag":
             tag = query["term"].lstrip("#").strip()
-
-            hashtag = il.Hashtag.from_name(loader.context, tag)
-
-            # Instagram can currently return the newer "sections" hashtag
-            # response without the pagination field Instaloader's
-            # SectionIterator expects.  Pre-patch the node as a best-effort
-            # measure so the iterator may never need to fetch a "more_available"
-            # field.  If the field is still missing during iteration (e.g.
-            # the internal structure changed again) the KeyError is caught
-            # below and reported as instagram_hashtag_api_incompatible so the
-            # caller can display a meaningful message instead of a generic error.
-            hashtag_node = getattr(hashtag, "_node", {})
-            recent = hashtag_node.get("recent")
-
-            if isinstance(recent, dict):
-                if "more_available" not in recent:
-                    recent["more_available"] = False
-
-                if "next_max_id" not in recent:
-                    recent["next_max_id"] = None
-
-            try:
-                hashtag_posts = hashtag.get_posts()
-
-                # Instagram's hashtag API only surfaces posts from public
-                # accounts — private posts never appear in hashtag feeds.
-                # Calling post.owner_profile.is_private would trigger a
-                # separate live HTTP request per post (lazy profile fetch)
-                # with no benefit, multiplying requests and rate-limit risk.
-                for post in islice(hashtag_posts, policy["items_per_query"]):
-                    if not append(post):
+            for post in _iter_hashtag_posts(loader, tag, policy["items_per_query"]):
+                if not append(post):
+                    break
+                if data.get('time_window'):
+                    from app.config.time_window import TimeWindow
+                    if TimeWindow.parse(data['time_window']).classify(records[-1]['published_at']) == 'STALE':
                         break
-
-            except KeyError as exc:
-                if str(exc) == "'more_available'":
-                    # The Instagram API changed its hashtag response format and
-                    # Instaloader's SectionIterator cannot parse it.  Return a
-                    # specific error code so the UI can show a useful message.
-                    if not records:
-                        return {
-                            "error": "instagram_hashtag_api_incompatible",
-                            "notes": [
-                                "Instagram hashtag response is incompatible with "
-                                "the installed Instaloader version. "
-                                "Update Instaloader or use profile/saved-source queries."
-                            ],
-                        }
-                    # Partial results already collected — surface as a warning.
-                    if "instagram_hashtag_api_incompatible" not in warnings:
-                        warnings.append("instagram_hashtag_api_incompatible")
-                else:
-                    raise
         else:
             if query['dimension'] == 'saved_source':
                 try:

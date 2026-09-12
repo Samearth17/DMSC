@@ -15,7 +15,7 @@ class InstagramConnector(SourceConnector):
         self.access = {}
         self.cache_scope = None
 
-    def operation(self, data, timeout=45):
+    def operation(self, data, timeout=60):
         import os
         from pathlib import Path
         data = {**data,'access':dict(self.access)}

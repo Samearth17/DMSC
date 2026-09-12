@@ -106,7 +106,8 @@ class Controller:
         with self.repository() as repo:
             config=repo.setting('instagram_access',{})
             last=repo.setting('instagram_status',{})
-        has_local = Path('session-jacethepint.json').exists() or (Path(self.path).parent/'session-jacethepint.json').exists()
+        root = Path(__file__).resolve().parents[3]
+        has_local = Path('session-jacethepint.json').exists() or (Path(self.path).parent/'session-jacethepint.json').exists() or (root/'session-jacethepint.json').exists()
         return {'username':config.get('username',''),'configured':bool(config),
                 'status':last.get('status','Not tested' if config else 'Not configured'),
                 'error':last.get('error'),'tested_at':last.get('tested_at'),
@@ -124,7 +125,8 @@ class Controller:
                     cookies['ds_user_id'] = data['ds_user_id'].strip()
                 config = save_session_cookies(sessions_dir, data.get('username','').strip(), cookies)
             elif data.get('use_local_file'):
-                local_candidates = [Path('session-jacethepint.json'), Path(self.path).parent/'session-jacethepint.json']
+                root = Path(__file__).resolve().parents[3]
+                local_candidates = [Path('session-jacethepint.json'), Path(self.path).parent/'session-jacethepint.json', root/'session-jacethepint.json']
                 found = next((p for p in local_candidates if p.exists()), None)
                 if not found:
                     raise ValueError('No local session-jacethepint.json file found')
@@ -161,7 +163,7 @@ class Controller:
                 'scrape_type': scrape_type,
                 'target': target,
                 'limit': limit
-            }, timeout=60)
+            }, timeout=90)
 
     def instagram_operation(self,data,operation):
         from app.normalization.models import now
