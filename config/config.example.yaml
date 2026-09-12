@@ -1,0 +1,55 @@
+# Placeholder-only profile. Copy to config.yaml; populate locally.
+# Enabled dimensions are independent discovery lanes (OR), not AND constraints.
+name: Local profile
+time_window:
+  hours: 24 # Allowed: 1, 6, 12, 24, 48, 168. Use the dashboard for Custom.
+  timezone: UTC
+saved_sources:
+  instagram: [] # Public usernames without @; session access may be required.
+  news: [] # Public HTTP(S) RSS feed URLs.
+dimensions:
+  geography:
+    enabled: false
+    values: [] # Add countries and/or locations here.
+    priority: 80
+  entities:
+    enabled: false
+    values: []
+    priority: 90
+  keywords:
+    enabled: false
+    values: []
+    priority: 50
+  hashtags:
+    enabled: false
+    values: []
+    priority: 70
+  incident_types:
+    enabled: false
+    values: []
+    priority: 60
+platforms:
+  youtube: false # Enable after a local connectivity test.
+  instagram: false # Implemented; live access may require a local session.
+  x: false # Enable after connecting your existing scraper.
+  reddit: false # Deferred by user.
+  meta: false # Indexed Facebook links plus accessible public HTML only.
+  news: true
+  web: false # Public search and bounded, robots-aware HTML extraction.
+policies:
+  youtube:
+    query_limit: 8
+    items_per_query: 10
+    min_interval_seconds: 3
+    timeout_seconds: 45
+    retries: 1
+    backoff_seconds: 3
+    cache_ttl_seconds: 900
+  news:
+    query_limit: 8
+    items_per_query: 10
+    min_interval_seconds: 2
+    timeout_seconds: 30
+    retries: 1
+    backoff_seconds: 2
+    cache_ttl_seconds: 900

@@ -1,0 +1,9 @@
+{
+  "name": "watchtower-local-dashboard",
+  "version": "0.3.0",
+  "private": true,
+  "scripts": {
+    "dev": "PYTHONPATH=backend python3 -m app.preview",
+    "check": "node --check backend/app/api/static/app.js"
+  }
+}

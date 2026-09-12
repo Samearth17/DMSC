@@ -1,0 +1,141 @@
+"""Bounded isolated Instaloader worker. No downloads or private-profile collection."""
+import contextlib
+from datetime import timezone
+from itertools import islice
+import json
+import os
+import sys
+
+
+def collect(data):
+    import instaloader as il
+    from instaloader import exceptions as ex
+    class StopOn429(il.RateController):
+        def handle_429(self, query_type):
+            raise ex.TooManyRequestsException("rate_limited")
+    query, policy = data.get('query',{'dimension':'keywords','term':''}), data.get('policy',{'timeout_seconds':30,'items_per_query':10})
+    loader = il.Instaloader(download_pictures=False,download_videos=False,
+        download_video_thumbnails=False,download_geotags=False,download_comments=False,
+        save_metadata=False,compress_json=False,quiet=True,max_connection_attempts=1,
+        request_timeout=min(policy["timeout_seconds"],20),rate_controller=StopOn429)
+    records, warnings, notes = [], [], []
+    method = "hashtag" if query["dimension"] == "hashtags" else "profile_search"
+    def append(post):
+        boundary=data.get('incremental',{}).get('last_item_id')
+        if boundary and str(post.mediaid)==str(boundary):
+            if 'incremental_boundary_reached' not in notes:
+                notes.append('incremental_boundary_reached')
+            return False
+        if len(records) >= policy["items_per_query"]:
+            return False
+        records.append({"id":str(post.mediaid),"shortcode":post.shortcode,"owner_id":str(post.owner_id),
+            "username":post.owner_username,"caption":post.caption,
+            "published_at":post.date_utc.replace(tzinfo=timezone.utc).isoformat(),
+            "media":[{"type":"video" if post.is_video else "image","url":post.url}],
+            "engagement":{"likes":post.likes,"comments":post.comments},
+            "raw_node":post._asdict(),"discovery_method":method})
+        return True
+    try:
+        access=data.get('access',{})
+        session = access.get('session_file') or os.getenv('WATCHTOWER_INSTAGRAM_SESSION')
+        username = access.get('username') or os.getenv('WATCHTOWER_INSTAGRAM_USERNAME')
+        if session and username:
+            from app.connectors.instagram.access import read_cookies
+            loader.load_session(username,read_cookies(session))
+        else:
+            return {'error':'instagram_not_configured'}
+        if data.get('operation') == 'test':
+            logged_in=loader.test_login()
+            return {'status':'Connected'} if logged_in and logged_in.casefold()==username.casefold() else {'error':'instagram_session_expired'}
+        if data.get('operation') == 'profiles':
+            profiles=[]
+            candidates=il.TopSearchResults(loader.context,data['search']).get_profiles()
+            for profile in islice(candidates,20):
+                if profile.is_private:
+                    continue
+                followers=profile.followers
+                if followers is None and (data.get('minimum') is not None or data.get('maximum') is not None):
+                    continue
+                if data.get('minimum') is not None and followers<data['minimum']:
+                    continue
+                if data.get('maximum') is not None and followers>data['maximum']:
+                    continue
+                profiles.append({'username':profile.username,'display_name':profile.full_name,
+                    'url':'https://www.instagram.com/'+profile.username+'/', 'biography':profile.biography,
+                    'followers':followers,'following':profile.followees,'post_count':profile.mediacount,
+                    'verified_account':profile.is_verified,'image':profile.profile_pic_url,
+                    'follower_count_source':'instagram_profile','private':False})
+            return {'profiles':profiles,'scope':'At most 20 discovered public profiles; follower filtering is local, not global search.'}
+        if method == "hashtag":
+            tag = query["term"].lstrip("#").strip()
+
+            hashtag = il.Hashtag.from_name(loader.context, tag)
+
+            # Instagram can currently return the newer "sections" hashtag
+            # response without the pagination field Instaloader's
+            # SectionIterator expects. Treat a missing field as "no more
+            # pages" so the first returned page can still be collected.
+            hashtag_node = getattr(hashtag, "_node", {})
+            recent = hashtag_node.get("recent")
+
+            if isinstance(recent, dict):
+                if "more_available" not in recent:
+                    recent["more_available"] = False
+
+                if "next_max_id" not in recent:
+                    recent["next_max_id"] = None
+
+            hashtag_posts = hashtag.get_posts()
+
+            for post in islice(hashtag_posts, policy["items_per_query"]):
+                if not post.owner_profile.is_private:
+                    if not append(post):
+                        break
+        else:
+            profiles = ([il.Profile.from_username(loader.context,query['term'])] if query['dimension']=='saved_source'
+                        else il.TopSearchResults(loader.context,query["term"].lstrip("@")).get_profiles())
+            # Profile search discovers public accounts; it is not full-text caption search.
+            for profile in islice(profiles,3):
+                if profile.is_private:
+                    warnings.append("instagram_private_profile_skipped")
+                    continue
+                remaining = policy["items_per_query"]-len(records)
+                for post in islice(profile.get_posts(),remaining):
+                    if not append(post):
+                        break
+                    if data.get('time_window'):
+                        from app.config.time_window import TimeWindow
+                        if TimeWindow.parse(data['time_window']).classify(records[-1]['published_at']) == 'STALE':
+                            # Keep the boundary item for the stale audit count; stop this source.
+                            break
+                if len(records) >= policy["items_per_query"]:
+                    break
+    except Exception as exc:
+        if isinstance(exc,ex.TooManyRequestsException):
+            code="instagram_rate_limited"
+        elif isinstance(exc,ex.LoginRequiredException):
+            code="instagram_login_required"
+        elif isinstance(exc,ex.BadCredentialsException):
+            code='instagram_authentication_failed'
+        elif isinstance(exc,ex.AbortDownloadException):
+            code='instagram_access_control_required'
+        elif isinstance(exc,ex.ConnectionException):
+            code="instagram_access_or_network_error"
+        else:
+            code="instagram_collection_error"
+        if not records:
+            return {"error":code}
+        warnings.append(code)
+    finally:
+        loader.close()
+    return {"records":records,"warnings":warnings,"notes":notes}
+
+
+if __name__ == "__main__":
+    try:
+        data=json.loads(sys.stdin.read())
+        with contextlib.redirect_stdout(sys.stderr):
+            result=collect(data)
+        print(json.dumps(result,ensure_ascii=False))
+    except Exception:
+        print(json.dumps({"error":"instagram_worker_error"}))
