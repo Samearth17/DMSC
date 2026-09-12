@@ -14,5 +14,8 @@ legacy/
 *.sqlite*
 cookies*
 *.log
+session*.json
+sessions/
 build/
 dist/
+

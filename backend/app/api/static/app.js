@@ -2,9 +2,9 @@
 const $=id=>document.getElementById(id);
 const state={profile:null,status:null,latest:null,selectedRun:null,view:'dashboard',values:{},polling:false};
 const names={geography:'Geography',entities:'Entities',keywords:'Keywords',hashtags:'Hashtags',incident_types:'Incident types',youtube:'YouTube',instagram:'Instagram',news:'News',x:'X',reddit:'Reddit',meta:'Facebook / Meta',web:'Web'};
-const views={dashboard:'Dashboard',profile:'Monitoring profile',run:'Run audit',history:'Audit history',platforms:'Platforms',records:'Records & search',events:'Events',sources:'Sources',alerts:'Alerts',settings:'Settings'};
+const views={dashboard:'Dashboard',instagram:'Instagram Scraper',profile:'Monitoring profile',run:'Run audit',history:'Audit history',platforms:'Platforms',records:'Records & search',events:'Events',sources:'Sources',alerts:'Alerts',settings:'Settings'};
 const metrics={queries_generated:'Queries generated',queries_executed:'Queries executed',requests:'HTTP requests',successful_requests:'Successful requests',failed_requests:'Failed requests',cached_queries:'Cached queries',connector_calls:'Collector calls',retry_count:'Retries',sources_discovered:'Sources discovered',items_discovered:'Items discovered',items_checked:'Items checked',new_items:'New raw revisions',items_duplicate:'Known item identities',cached_items:'Unchanged raw records',within_time_window:'Within time window',items_stale:'Stale filtered',items_unknown_time:'Unknown publication time',items_after_window:'After window',relevant_items:'Relevant records',errors:'Errors / warnings',rate_limited_calls:'Rate-limited calls'};
-const errors={instagram_not_configured:'Not configured. Import a local Instaloader session in Settings.',instagram_login_required:'Authentication required. Import a valid session.',instagram_session_expired:'Session expired. Renew the session through Instaloader and import it again.',instagram_authentication_failed:'Authentication failed. Check the account and renew its session.',instagram_rate_limited:'Rate limited. Collection stopped; wait before trying again.',instagram_access_control_required:'Instagram requires an access check. Complete it through Instagram.',instagram_access_or_network_error:'Instagram could not be reached or denied access.',instaloader_not_installed:'Instaloader is unavailable. Install the Instagram dependency during setup.',youtube_tls_error:'YouTube TLS verification failed. Check the machine certificate store.',youtube_timeout:'YouTube exceeded its time budget. Review limits and timeout.',youtube_extraction_failed:'YouTube metadata extraction failed. Access may be blocked or yt-dlp may need an update.',no_enabled_values:'No enabled criteria or saved sources.',skipped_after_rate_limit:'Query skipped after the platform rate-limited an earlier request.',application_interrupted:'Watchtower stopped before this work finished. Coverage is incomplete; run a new audit.'};
+const errors={instagram_not_configured:'Not configured. Import a local Instaloader session in Settings.',instagram_login_required:'Authentication required. Import a valid session.',instagram_session_expired:'Session expired. Renew the session through Instaloader and import it again.',instagram_authentication_failed:'Authentication failed. Check the account and renew its session.',instagram_rate_limited:'Rate limited. Collection stopped; wait before trying again.',instagram_access_control_required:'Instagram requires an access check. Complete it through Instagram.',instagram_access_or_network_error:'Instagram could not be reached or denied access.',instagram_collection_error:'Instagram collection failed due to an unexpected error. Check the audit report for details.',instagram_hashtag_api_incompatible:'Instagram changed its hashtag API format. Update Instaloader (pip install -U instaloader) or use saved-profile queries instead.',instaloader_not_installed:'Instaloader is unavailable. Install the Instagram dependency during setup.',youtube_tls_error:'YouTube TLS verification failed. Check the machine certificate store.',youtube_timeout:'YouTube exceeded its time budget. Review limits and timeout.',youtube_extraction_failed:'YouTube metadata extraction failed. Access may be blocked or yt-dlp may need an update.',no_enabled_values:'No enabled criteria or saved sources.',skipped_after_rate_limit:'Query skipped after the platform rate-limited an earlier request.',application_interrupted:'Watchtower stopped before this work finished. Coverage is incomplete; run a new audit.'};
 function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
 function empty(text){return node('p',text,'empty');}
 function notice(text){$('notice').textContent=text;}
@@ -19,6 +19,7 @@ function table(rows){const wrap=node('div',undefined,'table-wrap'),t=node('table
 function details(title,child){const e=node('details',undefined,'panel');e.append(node('summary',title),child);return e;}
 const templates={
 dashboard:'<div id="overview"></div><h2>Platform coverage</h2><div id="dashboard-platforms" class="platform-grid"></div><h2>Latest candidate events</h2><div id="latest-events"></div>',
+instagram:`<div id="ig-session-bar" class="ig-status-bar disconnected"><div class="ig-status-pill"><span class="ig-status-dot"></span><span id="ig-session-text">Session Required</span></div><div class="actions"><button id="ig-test-btn">Test Connection</button><button id="ig-toggle-setup">Setup / Change Session</button></div></div><div id="ig-quick-connect" class="ig-quick-card" hidden><div><p><strong>Local Session File Detected!</strong> We found <code>session-jacethepint.json</code> on your machine.</p><p class="muted">You can connect to Instagram with 1-click without copying cookies or terminal commands.</p></div><button id="ig-quick-btn" class="primary">Connect @jacethepint</button></div><div id="ig-setup-panel" class="panel" hidden><h2>Instagram Connection Setup</h2><p>Connect your Instagram account using browser cookies. No terminal commands or password storage; cookies remain strictly on this computer.</p><details class="ig-guide"><summary>📖 How to get your cookies in 30 seconds (Click to expand)</summary><ol><li>Open <a href="https://www.instagram.com" target="_blank" rel="noopener">instagram.com</a> and log into your account.</li><li>Press <strong>F12</strong> (or Right-click &rarr; <strong>Inspect</strong>).</li><li>Go to <strong>Application</strong> (or <strong>Storage</strong> in Firefox) &rarr; <strong>Cookies</strong> &rarr; <code>https://www.instagram.com</code>.</li><li>Copy the value of <strong>sessionid</strong> and <strong>csrftoken</strong> and paste them below!</li></ol></details><div class="limit-grid" style="margin-top:14px"><label>Instagram Username<input id="ig-auth-user" placeholder="e.g. jacethepint" autocomplete="off"></label><label>sessionid Cookie<input id="ig-auth-sessionid" type="password" placeholder="Paste sessionid value"></label><label>csrftoken Cookie<input id="ig-auth-csrftoken" type="password" placeholder="Paste csrftoken value"></label></div><div class="actions" style="margin-top:14px"><button id="ig-save-cookies" class="primary">Save & Connect</button><button id="ig-show-file-upload">Or Upload Session File</button></div><div id="ig-file-upload-box" class="actions" style="margin-top:10px" hidden><input id="ig-file-input" type="file" accept=".json"><button id="ig-upload-btn">Upload & Connect</button></div></div><div class="panel"><div class="ig-tabs"><button id="tab-ig-profile" class="ig-tab active">👤 Profile Posts</button><button id="tab-ig-hashtag" class="ig-tab"># Hashtag Feed</button><button id="tab-ig-discover" class="ig-tab">🔍 Discover Accounts</button></div><div id="ig-mode-profile"><div class="limit-grid"><label style="grid-column:span 2">Instagram Username<input id="ig-target-user" placeholder="e.g. indianarmy.adgpi, defence_mania"></label><label>Post Limit<select id="ig-target-limit"><option value="5">5 posts</option><option value="10" selected>10 posts</option><option value="20">20 posts</option><option value="50">50 posts</option></select></label></div><div class="ig-chips"><span class="muted" style="font-size:12px;align-self:center">Try:</span><span class="ig-chip" data-chip="indianarmy.adgpi">@indianarmy.adgpi</span><span class="ig-chip" data-chip="defence_academy_dharmshala_">@defence_academy_dharmshala_</span><span class="ig-chip" data-chip="defence_mania">@defence_mania</span></div><div class="actions" style="margin-top:16px"><button id="ig-scrape-btn" class="primary">Scrape Profile Posts</button></div></div><div id="ig-mode-hashtag" hidden><div class="limit-grid"><label style="grid-column:span 2">Hashtag Name<input id="ig-target-tag" placeholder="e.g. indianarmy, defence"></label><label>Post Limit<select id="ig-tag-limit"><option value="5">5 posts</option><option value="10" selected>10 posts</option><option value="20">20 posts</option></select></label></div><div class="actions" style="margin-top:16px"><button id="ig-scrape-tag-btn" class="primary">Scrape Hashtag</button></div></div><div id="ig-mode-discover" hidden><div class="limit-grid"><label>Search Keyword<input id="ig-disc-term" placeholder="e.g. defence, army, airforce"></label><label>Min Followers<input id="ig-disc-min" type="number" min="0" placeholder="Optional"></label><label>Max Followers<input id="ig-disc-max" type="number" min="0" placeholder="Optional"></label></div><div class="actions" style="margin-top:16px"><button id="ig-discover-btn" class="primary">Search Accounts</button></div><div id="ig-discover-results" style="margin-top:18px"></div></div></div><div id="ig-scrape-loading" class="ig-loader" hidden><div class="ig-spinner"></div><span id="ig-scrape-status-text">Fetching data from Instagram...</span></div><div id="ig-profile-card"></div><div id="ig-results-toolbar" class="actions" style="justify-content:space-between;margin:18px 0 12px" hidden><h3 id="ig-results-title">Scraped Posts (0)</h3><div class="actions"><button id="ig-export-json">Export JSON</button><button id="ig-export-csv">Export CSV</button><button id="ig-add-source" class="primary">+ Add to Monitored Sources</button></div></div><div id="ig-posts-container" class="ig-posts-grid"></div>`,
 profile:'<div class="section-heading"><p>Add values once, then select them for future audits. Enabled categories are independent discovery lanes.</p><button id="save-profile" class="primary">Save profile</button></div><label class="name-field">Profile name<input id="profile-name" maxlength="120"></label><div id="dimensions" class="dimension-grid"></div><h2>Enabled platforms</h2><div id="platform-select" class="platform-grid"></div><div class="panel"><h2>Saved sources</h2><p>Optional public Instagram usernames and RSS feeds. These share the platform query budget.</p><div id="saved-sources"></div></div>',
 run:'<div class="panel"><h2>Audit configuration</h2><p id="run-summary"></p><p>Preview and Run save the current profile. Preview makes no external requests.</p><div class="limit-grid"><label>Time window<select id="window-hours"><option value="1">Last 1 hour</option><option value="6">Last 6 hours</option><option value="12">Last 12 hours</option><option value="24" selected>Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="custom">Custom</option></select></label><label>Display timezone<input id="window-zone" value="UTC"></label></div><div id="custom-window" class="limit-grid" hidden><label>From (browser local time)<input id="window-start" type="datetime-local"></label><label>To (browser local time)<input id="window-end" type="datetime-local"></label></div><h3>Platform collection policies</h3><p>Budgets are bounded. Internal collector HTTP requests may be uninstrumented.</p><div id="policies"></div><div class="actions"><button id="preview-plan">Preview queries</button><button id="run-audit" class="primary">Run audit</button></div><div id="query-plan"></div></div><div id="live-report"></div>',
 history:'<div class="history-layout"><div id="run-list" class="panel"></div><div id="history-report"></div></div>',
@@ -29,7 +30,7 @@ sources:'<p>History covers returned records, not exhaustive account inventories.
 alerts:'<p>Review queue: current records matching at least 75% of weighted enabled categories. An alert is not verification.</p><div id="alert-results"></div>',
 settings:'<div class="panel"><h2>Instagram access</h2><p>Import a local Instaloader session created through its normal login workflow. Cookies remain on this computer and never appear in reports.</p><div class="limit-grid"><label>Username<input id="ig-username" autocomplete="off"></label><label>Local session file<input id="ig-session" type="file"></label></div><div class="actions"><button id="ig-configure">Import session</button><button id="ig-test">Test connection</button></div><p id="ig-status"></p></div><div class="panel"><h2>Instagram profile search</h2><p>Search up to 20 discovered public profiles, then filter available follower metadata.</p><div class="limit-grid"><label>Search<input id="ig-search"></label><label>Minimum followers<input id="ig-min" type="number" min="0"></label><label>Maximum followers<input id="ig-max" type="number" min="0"></label></div><button id="ig-find">Search profiles</button><div id="ig-results"></div></div><div class="panel"><h2>Scheduled audits</h2><p>Uses the saved profile. Keep Watchtower running and the computer awake.</p><label class="check"><input id="schedule-enabled" type="checkbox">Enable schedule</label><label>Interval (minutes)<input id="schedule-minutes" type="number" min="5" max="10080" value="60"></label><button id="save-schedule">Save schedule</button><p id="schedule-next"></p></div>'};
 for(const[key,title]of Object.entries(views)){const b=action(title,()=>navigate(key),'nav');b.dataset.view=key;$('navigation').append(b);const section=node('section',undefined,'view');section.id='view-'+key;section.hidden=key!=='dashboard';section.innerHTML=templates[key];$('views').append(section);} // Static templates only; all external values use textContent.
-async function navigate(view){state.view=view;for(const section of document.querySelectorAll('.view'))section.hidden=section.id!=='view-'+view;for(const b of document.querySelectorAll('.nav'))b.classList.toggle('active',b.dataset.view===view);$('view-title').textContent=views[view];if(view==='history')await history();if(view==='records')await search();if(view==='events')renderEvents($('event-results'),await api('/api/incidents'));if(view==='sources')await sources();if(view==='alerts')await alerts();if(view==='settings')await instagramStatus();if(view==='run')runSummary();}
+async function navigate(view){state.view=view;for(const section of document.querySelectorAll('.view'))section.hidden=section.id!=='view-'+view;for(const b of document.querySelectorAll('.nav'))b.classList.toggle('active',b.dataset.view===view);$('view-title').textContent=views[view];if(view==='instagram')await initInstagramView();if(view==='history')await history();if(view==='records')await search();if(view==='events')renderEvents($('event-results'),await api('/api/incidents'));if(view==='sources')await sources();if(view==='alerts')await alerts();if(view==='settings')await instagramStatus();if(view==='run')runSummary();}
 function renderDimension(category){const d=state.profile.dimensions[category],card=node('article',undefined,'dimension'),head=node('header'),label=node('label',names[category],'check'),enabled=document.createElement('input');enabled.type='checkbox';enabled.checked=d.enabled;enabled.addEventListener('change',()=>{d.enabled=enabled.checked;notice('Profile changed. Save to persist selections.');});label.prepend(enabled);head.append(label);card.append(head);const filter=document.createElement('input');filter.type='search';filter.placeholder='Search '+names[category].toLowerCase();filter.setAttribute('aria-label',filter.placeholder);card.append(filter);const list=node('div',undefined,'value-list'),count=node('p','', 'muted');
 function draw(){list.replaceChildren();for(const value of state.values[category].filter(v=>v.value.toLowerCase().includes(filter.value.toLowerCase()))){const row=node('div',undefined,'value-row'),l=node('label',value.value,'check'),check=document.createElement('input');check.type='checkbox';check.checked=d.values.includes(value.value);check.addEventListener('change',()=>{d.values=check.checked?[...new Set([...d.values,value.value])]:d.values.filter(v=>v!==value.value);count.textContent=`Selected: ${d.values.length}`;notice('Selection changed. Save profile to persist.');});l.prepend(check);row.append(l,action('Archive',async()=>{await api(`/api/values/${category}/${value.id}`,undefined,'DELETE');d.values=d.values.filter(v=>v!==value.value);state.values[category]=await api('/api/values/'+category);draw();notice('Value archived. Historical snapshots retained.');},'small'));list.append(row);}if(!list.children.length)list.append(node('p','No saved values match.','muted'));count.textContent=`Selected: ${d.values.length}`;}
 filter.addEventListener('input',draw);draw();const add=document.createElement('input');add.placeholder='New '+names[category].toLowerCase();add.maxLength=200;add.setAttribute('aria-label',add.placeholder);card.append(list,count,add,action('+ Add '+names[category],async()=>{const value=await api('/api/values/'+category,{value:add.value});state.values[category]=await api('/api/values/'+category);add.value='';draw();notice(`${value.value} saved to the value library. Select it to use it in an audit.`);}));return card;}
@@ -64,6 +65,338 @@ bind('ig-test',async()=>{$('ig-status').textContent='Testing connection…';cons
 bind('ig-find',async()=>{const r=await api('/api/instagram/search',{search:$('ig-search').value,minimum:$('ig-min').value===''?null:Number($('ig-min').value),maximum:$('ig-max').value===''?null:Number($('ig-max').value)});$('ig-results').replaceChildren();if(r.error){$('ig-results').append(empty(errors[r.error]||r.error));return;}$('ig-results').append(node('p',r.scope));if(!r.profiles.length)$('ig-results').append(empty('No accessible profiles matched.'));for(const p of r.profiles){const c=node('article',undefined,'result');c.append(link('@'+p.username+' · '+p.display_name,p.url),node('p',p.biography),table([['Followers',p.followers],['Following',p.following],['Posts',p.post_count],['Verified account badge',p.verified_account?'Yes':'No']]),action('Monitor profile',async()=>{state.profile.saved_sources.instagram=[...new Set([...(state.profile.saved_sources.instagram||[]),p.username])];await saveProfile();renderSaved();notice('Source saved. Enable Instagram to include it in audits.');}));$('ig-results').append(c);}});
 bind('save-schedule',async()=>{const s=await api('/api/schedule',{enabled:$('schedule-enabled').checked,interval_minutes:Number($('schedule-minutes').value)});$('schedule-next').textContent=s.next_run_at?'Next: '+date(new Date(s.next_run_at*1000).toISOString()):'Schedule disabled';notice('Schedule saved.');});
 $('close-dialog').addEventListener('click',()=>$('detail-dialog').close());
+
+let igScrapedData = { profile: null, records: [] };
+let igInitialized = false;
+
+async function initInstagramView() {
+    await refreshInstagramStatus();
+    if (!igInitialized) {
+        setupInstagramEventListeners();
+        igInitialized = true;
+    }
+}
+
+async function refreshInstagramStatus() {
+    try {
+        const s = await api('/api/instagram');
+        const bar = $('ig-session-bar');
+        const text = $('ig-session-text');
+        if (s.configured) {
+            bar.className = 'ig-status-bar connected';
+            text.textContent = `Connected as @${s.username}${s.status ? ' (' + s.status + ')' : ''}`;
+            if ($('ig-quick-connect')) $('ig-quick-connect').hidden = true;
+        } else {
+            bar.className = 'ig-status-bar disconnected';
+            text.textContent = 'Instagram Session Required';
+            if (s.has_local_file && $('ig-quick-connect')) {
+                $('ig-quick-connect').hidden = false;
+            }
+        }
+        if (s.username && $('ig-auth-user') && !$('ig-auth-user').value) $('ig-auth-user').value = s.username;
+    } catch (e) {
+        notice('Could not check Instagram session: ' + e.message);
+    }
+}
+
+function setupInstagramEventListeners() {
+    const tabs = {
+        'tab-ig-profile': 'ig-mode-profile',
+        'tab-ig-hashtag': 'ig-mode-hashtag',
+        'tab-ig-discover': 'ig-mode-discover'
+    };
+    for (const [tabId, modeId] of Object.entries(tabs)) {
+        const tabElem = $(tabId);
+        if (!tabElem) continue;
+        tabElem.addEventListener('click', () => {
+            for (const t of Object.keys(tabs)) {
+                $(t)?.classList.toggle('active', t === tabId);
+                const m = $(tabs[t]);
+                if (m) m.hidden = t !== tabId;
+            }
+        });
+    }
+
+    $('ig-toggle-setup')?.addEventListener('click', () => {
+        const p = $('ig-setup-panel');
+        if (p) p.hidden = !p.hidden;
+    });
+
+    document.querySelectorAll('.ig-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            if ($('ig-target-user')) $('ig-target-user').value = chip.dataset.chip;
+        });
+    });
+
+    bind('ig-quick-btn', async () => {
+        notice('Connecting local session...');
+        await api('/api/instagram/configure', { use_local_file: true, username: 'jacethepint' });
+        await refreshInstagramStatus();
+        notice('Connected successfully to @jacethepint!');
+    });
+
+    bind('ig-test-btn', async () => {
+        notice('Testing connection to Instagram…');
+        const r = await api('/api/instagram/test', {});
+        if (r.status === 'Connected') {
+            notice('Instagram connection active & verified!');
+        } else {
+            notice('Connection issue: ' + (errors[r.error] || r.error || 'Check session'));
+        }
+        await refreshInstagramStatus();
+    });
+
+    bind('ig-save-cookies', async () => {
+        const username = $('ig-auth-user').value.trim();
+        const sessionid = $('ig-auth-sessionid').value.trim();
+        const csrftoken = $('ig-auth-csrftoken').value.trim();
+        if (!username) throw new Error('Enter your Instagram username');
+        if (!sessionid || !csrftoken) throw new Error('Enter both sessionid and csrftoken cookies');
+        await api('/api/instagram/configure', { username, sessionid, csrftoken });
+        $('ig-setup-panel').hidden = true;
+        await refreshInstagramStatus();
+        notice(`Saved session for @${username}. Testing connection...`);
+        const test = await api('/api/instagram/test', {});
+        if (test.status === 'Connected') notice(`Verified! Connected as @${username}`);
+        else notice(`Session saved, status: ${test.status || errors[test.error] || test.error}`);
+    });
+
+    $('ig-show-file-upload')?.addEventListener('click', () => {
+        const box = $('ig-file-upload-box');
+        if (box) box.hidden = !box.hidden;
+    });
+
+    bind('ig-upload-btn', async () => {
+        const file = $('ig-file-input').files[0];
+        if (!file) throw new Error('Choose a session file');
+        const text = await file.text();
+        try {
+            const data = JSON.parse(text);
+            if (data.sessionid && data.csrftoken) {
+                const username = $('ig-auth-user').value.trim() || 'user';
+                await api('/api/instagram/configure', { username, sessionid: data.sessionid, csrftoken: data.csrftoken });
+                $('ig-setup-panel').hidden = true;
+                await refreshInstagramStatus();
+                notice('Session uploaded & saved!');
+                return;
+            }
+        } catch {}
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 32768) binary += String.fromCharCode(...bytes.subarray(i, i + 32768));
+        await api('/api/instagram/configure', { username: $('ig-auth-user').value.trim(), session_data: btoa(binary) });
+        $('ig-setup-panel').hidden = true;
+        await refreshInstagramStatus();
+        notice('Session imported successfully!');
+    });
+
+    bind('ig-scrape-btn', async () => {
+        const target = $('ig-target-user').value.trim();
+        if (!target) throw new Error('Enter an Instagram username to scrape');
+        const limit = Number($('ig-target-limit').value);
+        $('ig-scrape-loading').hidden = false;
+        $('ig-scrape-status-text').textContent = `Scraping posts from @${target.replace(/^@/,'')}...`;
+        $('ig-profile-card').replaceChildren();
+        $('ig-posts-container').replaceChildren();
+        $('ig-results-toolbar').hidden = true;
+        try {
+            const res = await api('/api/instagram/scrape', { type: 'profile', target, limit });
+            $('ig-scrape-loading').hidden = true;
+            if (res.error) throw new Error(errors[res.error] || res.notes?.[0] || res.error);
+            igScrapedData = res;
+            renderScrapedProfile(res.profile);
+            renderScrapedPosts(res.records);
+            if (res.warnings?.length) notice('Notice: ' + res.warnings.map(w => errors[w] || w).join('; '));
+        } catch (e) {
+            $('ig-scrape-loading').hidden = true;
+            notice('Scrape failed: ' + e.message);
+        }
+    });
+
+    bind('ig-scrape-tag-btn', async () => {
+        const target = $('ig-target-tag').value.trim();
+        if (!target) throw new Error('Enter a hashtag to scrape');
+        const limit = Number($('ig-tag-limit').value);
+        $('ig-scrape-loading').hidden = false;
+        $('ig-scrape-status-text').textContent = `Scraping hashtag #${target.replace(/^#/,'')}...`;
+        $('ig-profile-card').replaceChildren();
+        $('ig-posts-container').replaceChildren();
+        $('ig-results-toolbar').hidden = true;
+        try {
+            const res = await api('/api/instagram/scrape', { type: 'hashtag', target, limit });
+            $('ig-scrape-loading').hidden = true;
+            if (res.error) throw new Error(errors[res.error] || res.notes?.[0] || res.error);
+            igScrapedData = res;
+            renderScrapedPosts(res.records);
+            if (res.warnings?.length) notice('Notice: ' + res.warnings.map(w => errors[w] || w).join('; '));
+        } catch (e) {
+            $('ig-scrape-loading').hidden = true;
+            notice('Scrape failed: ' + e.message);
+        }
+    });
+
+    bind('ig-discover-btn', async () => {
+        const term = $('ig-disc-term').value.trim();
+        if (!term) throw new Error('Enter a search keyword');
+        const minVal = $('ig-disc-min').value;
+        const maxVal = $('ig-disc-max').value;
+        const res = await api('/api/instagram/search', {
+            search: term,
+            minimum: minVal === '' ? null : Number(minVal),
+            maximum: maxVal === '' ? null : Number(maxVal)
+        });
+        const container = $('ig-discover-results');
+        container.replaceChildren();
+        if (res.error) {
+            container.append(empty(errors[res.error] || res.error));
+            return;
+        }
+        if (!res.profiles.length) {
+            container.append(empty('No public accounts matched.'));
+            return;
+        }
+        for (const p of res.profiles) {
+            const card = node('article', undefined, 'result');
+            const title = node('h3');
+            title.append(link(`@${p.username} · ${p.display_name}`, p.url));
+            if (p.verified_account) title.append(node('span', ' ✔', 'pill complete'));
+            card.append(title, node('p', p.biography || 'No bio available'));
+            card.append(table([
+                ['Followers', Number(p.followers).toLocaleString()],
+                ['Following', Number(p.following).toLocaleString()],
+                ['Posts', Number(p.post_count).toLocaleString()]
+            ]));
+            const actionsDiv = node('div', undefined, 'actions');
+            actionsDiv.append(
+                action('Scrape This Account', () => {
+                    $('tab-ig-profile').click();
+                    $('ig-target-user').value = p.username;
+                    $('ig-scrape-btn').click();
+                }, 'primary'),
+                action('+ Monitor in Profile', async () => {
+                    state.profile.saved_sources.instagram = [...new Set([...(state.profile.saved_sources.instagram || []), p.username])];
+                    await saveProfile();
+                    renderSaved();
+                    notice(`@${p.username} added to saved sources!`);
+                })
+            );
+            card.append(actionsDiv);
+            container.append(card);
+        }
+    });
+
+    $('ig-export-json')?.addEventListener('click', () => {
+        if (!igScrapedData.records?.length) return;
+        const blob = new Blob([JSON.stringify(igScrapedData, null, 2)], { type: 'application/json' });
+        downloadBlob(blob, `instagram-scraped-${Date.now()}.json`);
+    });
+
+    $('ig-export-csv')?.addEventListener('click', () => {
+        if (!igScrapedData.records?.length) return;
+        const rows = [['Shortcode', 'URL', 'Username', 'Published At', 'Likes', 'Comments', 'Caption']];
+        for (const r of igScrapedData.records) {
+            rows.push([
+                r.shortcode || '',
+                `https://www.instagram.com/p/${r.shortcode}/`,
+                r.username || '',
+                r.published_at || '',
+                r.engagement?.likes ?? 0,
+                r.engagement?.comments ?? 0,
+                (r.caption || '').replace(/"/g, '""').replace(/\n/g, ' ')
+            ]);
+        }
+        const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+        downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `instagram-scraped-${Date.now()}.csv`);
+    });
+
+    $('ig-add-source')?.addEventListener('click', async () => {
+        const username = igScrapedData.profile?.username || igScrapedData.records?.[0]?.username;
+        if (!username) return;
+        state.profile.saved_sources.instagram = [...new Set([...(state.profile.saved_sources.instagram || []), username])];
+        await saveProfile();
+        renderSaved();
+        notice(`@${username} successfully added to Watchtower Monitored Sources!`);
+    });
+}
+
+function downloadBlob(blob, filename) {
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = u;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(u), 1000);
+}
+
+function renderScrapedProfile(p) {
+    const container = $('ig-profile-card');
+    container.replaceChildren();
+    if (!p) return;
+    const card = node('div', undefined, 'ig-profile-header');
+    const avatar = node('div', (p.display_name || p.username || 'IG').slice(0, 2).toUpperCase(), 'ig-avatar');
+    const info = node('div', undefined, 'ig-profile-info');
+    const nameHeading = node('h2', p.display_name || p.username, 'ig-profile-name');
+    nameHeading.append(link(` @${p.username}`, p.url));
+    if (p.verified_account) {
+        const v = node('span', ' ✔ Verified', 'pill complete');
+        v.style.marginLeft = '8px';
+        nameHeading.append(v);
+    }
+    const statsRow = node('div', undefined, 'ig-stats-row');
+    statsRow.innerHTML = `<span><strong>${Number(p.followers || 0).toLocaleString()}</strong> followers</span><span><strong>${Number(p.following || 0).toLocaleString()}</strong> following</span><span><strong>${Number(p.post_count || 0).toLocaleString()}</strong> posts</span>`;
+    info.append(nameHeading, statsRow, node('p', p.biography || ''));
+    card.append(avatar, info);
+    container.append(card);
+}
+
+function renderScrapedPosts(records) {
+    const container = $('ig-posts-container');
+    container.replaceChildren();
+    $('ig-results-toolbar').hidden = !records?.length;
+    $('ig-results-title').textContent = `Scraped Posts (${records?.length || 0})`;
+    if (!records?.length) {
+        container.append(empty('No posts found for this query.'));
+        return;
+    }
+    for (const post of records) {
+        const card = node('article', undefined, 'ig-post-card');
+        const preview = node('div', undefined, 'ig-post-preview');
+        const imgUrl = post.media?.[0]?.url;
+        const isVideo = post.media?.[0]?.type === 'video' || post.raw_node?.is_video;
+        if (imgUrl) {
+            const img = document.createElement('img');
+            img.src = imgUrl;
+            img.alt = post.caption?.slice(0, 60) || 'Post media';
+            img.loading = 'lazy';
+            img.referrerPolicy = 'no-referrer';
+            preview.append(img);
+        } else {
+            preview.append(node('span', isVideo ? '🎬 Video' : '📷 Photo', 'muted'));
+        }
+        preview.append(node('span', isVideo ? '🎬 Video' : '📷 Photo', 'ig-badge'));
+        const body = node('div', undefined, 'ig-post-body');
+        const meta = node('div', undefined, 'ig-post-meta');
+        meta.append(
+            link(`🔗 ${post.shortcode}`, `https://www.instagram.com/p/${post.shortcode}/`),
+            node('span', date(post.published_at))
+        );
+        const caption = node('p', post.caption || 'No caption text', 'ig-post-caption');
+        const eng = node('div', undefined, 'ig-post-engagement');
+        eng.innerHTML = `<span>❤️ ${(post.engagement?.likes ?? 0).toLocaleString()} likes</span><span>💬 ${(post.engagement?.comments ?? 0).toLocaleString()} comments</span>`;
+        const postActions = node('div', undefined, 'actions');
+        postActions.style.marginTop = '10px';
+        postActions.append(
+            action('Inspect Raw', () => showRaw(`Post ${post.shortcode}`, post)),
+            action('Copy Link', () => {
+                navigator.clipboard.writeText(`https://www.instagram.com/p/${post.shortcode}/`);
+                notice('Copied post URL to clipboard!');
+            })
+        );
+        body.append(meta, caption, eng, postActions);
+        card.append(preview, body);
+        container.append(card);
+    }
+}
 async function poll(){if(state.polling)return;state.polling=true;try{state.status=await api('/api/status');$('run-state').textContent=state.status.running?'Audit running':'Ready';$('run-state').className='pill '+(state.status.running?'running':'');$('run-audit').disabled=state.status.running;const runs=await api('/api/audits');if(runs.length){state.latest=await api('/api/audits/'+runs[0].id);$('overview').replaceChildren(summary(state.latest));platformCards($('dashboard-platforms'),state.latest);platformCards($('platform-cards'),state.latest);renderEvents($('latest-events'),await api('/api/incidents?run_id='+runs[0].id));if(state.view==='run'){$('live-report').replaceChildren(summary(state.latest));if(state.latest.platforms)for(const[p,a]of Object.entries(state.latest.platforms))$('live-report').append(node('p',`${names[p]}: ${a.status} · ${a.metrics.items_checked} items · ${a.metrics.relevant_items} relevant`));}if(state.status.last_error)notice(state.status.last_error);}else{$('overview').replaceChildren(empty('No audits yet. Start with Monitoring profile.'));platformCards($('dashboard-platforms'),null);platformCards($('platform-cards'),null);}}catch(e){notice('Could not refresh status: '+e.message);}finally{state.polling=false;}}
 async function init(){state.profile=await api('/api/profile');state.capabilities=await api('/api/platforms');for(const category of Object.keys(state.profile.dimensions))state.values[category]=await api('/api/values/'+category);renderProfile();await poll();if(state.status){$('schedule-enabled').checked=state.status.schedule.enabled;$('schedule-minutes').value=state.status.schedule.interval_minutes;}setInterval(poll,2500);}
 init().catch(e=>notice('Application could not load: '+e.message));

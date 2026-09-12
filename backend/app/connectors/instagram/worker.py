@@ -1,10 +1,40 @@
 """Bounded isolated Instaloader worker. No downloads or private-profile collection."""
 import contextlib
-from datetime import timezone
+from datetime import date, datetime, timezone
 from itertools import islice
 import json
 import os
 import sys
+
+
+def _safe_raw(post):
+    """Return a JSON-serializable snapshot of a Post's internal dict.
+
+    post._asdict() is a private Instaloader API that returns a plain dict,
+    but its values can include datetime objects, date objects, and other
+    non-serializable Instaloader types.  Coerce them here so json.dumps()
+    in __main__ never crashes and silently discards all collected records.
+    """
+    try:
+        raw = post._asdict()
+    except Exception:
+        return {}
+
+    def _coerce(value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, date):
+            return value.isoformat()
+        if isinstance(value, (str, int, float, bool, type(None))):
+            return value
+        if isinstance(value, dict):
+            return {str(k): _coerce(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [_coerce(v) for v in value]
+        # Anything else (custom Instaloader types, sets, …) → string fallback
+        return str(value)
+
+    return _coerce(raw)
 
 
 def collect(data):
@@ -33,7 +63,7 @@ def collect(data):
             "published_at":post.date_utc.replace(tzinfo=timezone.utc).isoformat(),
             "media":[{"type":"video" if post.is_video else "image","url":post.url}],
             "engagement":{"likes":post.likes,"comments":post.comments},
-            "raw_node":post._asdict(),"discovery_method":method})
+            "raw_node":_safe_raw(post),"discovery_method":method})
         return True
     try:
         access=data.get('access',{})
@@ -47,6 +77,72 @@ def collect(data):
         if data.get('operation') == 'test':
             logged_in=loader.test_login()
             return {'status':'Connected'} if logged_in and logged_in.casefold()==username.casefold() else {'error':'instagram_session_expired'}
+        if data.get('operation') == 'scrape':
+            scrape_type = data.get('scrape_type', 'profile')
+            target = str(data.get('target', '')).strip()
+            limit = int(data.get('limit', 10))
+            profile_info = None
+
+            if scrape_type == 'profile':
+                user = target.lstrip('@').strip()
+                profile_obj = None
+                try:
+                    profile_obj = il.Profile.from_username(loader.context, user)
+                except Exception:
+                    candidates = il.TopSearchResults(loader.context, user).get_profiles()
+                    for p in candidates:
+                        if p.username.lower() == user.lower():
+                            profile_obj = p
+                            break
+                    if not profile_obj:
+                        cand_list = list(candidates)
+                        if cand_list:
+                            profile_obj = cand_list[0]
+
+                if profile_obj:
+                    profile_info = {
+                        'username': profile_obj.username,
+                        'display_name': profile_obj.full_name,
+                        'followers': profile_obj.followers,
+                        'following': profile_obj.followees,
+                        'post_count': profile_obj.mediacount,
+                        'biography': profile_obj.biography,
+                        'verified_account': profile_obj.is_verified,
+                        'url': f'https://www.instagram.com/{profile_obj.username}/'
+                    }
+                    if profile_obj.is_private:
+                        warnings.append('instagram_private_profile_skipped')
+                        return {'profile': profile_info, 'records': [], 'warnings': ['This profile is private. Posts cannot be viewed without following.'], 'notes': []}
+
+                    for post in islice(profile_obj.get_posts(), limit):
+                        if not append(post):
+                            break
+                else:
+                    return {'error': 'instagram_collection_error', 'notes': [f'Could not find public profile @{user}']}
+
+            elif scrape_type == 'hashtag':
+                tag = target.lstrip('#').strip()
+                try:
+                    hashtag = il.Hashtag.from_name(loader.context, tag)
+                    hashtag_node = getattr(hashtag, "_node", {})
+                    recent = hashtag_node.get("recent")
+                    if isinstance(recent, dict):
+                        if "more_available" not in recent:
+                            recent["more_available"] = False
+                        if "next_max_id" not in recent:
+                            recent["next_max_id"] = None
+                    for post in islice(hashtag.get_posts(), limit):
+                        if not append(post):
+                            break
+                except KeyError as exc:
+                    if str(exc) == "'more_available'":
+                        if not records:
+                            return {"error": "instagram_hashtag_api_incompatible", "notes": ["Instagram hashtag response is incompatible with current Instaloader. Use profile queries instead."]}
+                        warnings.append("instagram_hashtag_api_incompatible")
+                    else:
+                        raise
+
+            return {'profile': profile_info, 'records': records, 'warnings': warnings, 'notes': notes}
         if data.get('operation') == 'profiles':
             profiles=[]
             candidates=il.TopSearchResults(loader.context,data['search']).get_profiles()
@@ -73,8 +169,12 @@ def collect(data):
 
             # Instagram can currently return the newer "sections" hashtag
             # response without the pagination field Instaloader's
-            # SectionIterator expects. Treat a missing field as "no more
-            # pages" so the first returned page can still be collected.
+            # SectionIterator expects.  Pre-patch the node as a best-effort
+            # measure so the iterator may never need to fetch a "more_available"
+            # field.  If the field is still missing during iteration (e.g.
+            # the internal structure changed again) the KeyError is caught
+            # below and reported as instagram_hashtag_api_incompatible so the
+            # caller can display a meaningful message instead of a generic error.
             hashtag_node = getattr(hashtag, "_node", {})
             recent = hashtag_node.get("recent")
 
@@ -85,15 +185,47 @@ def collect(data):
                 if "next_max_id" not in recent:
                     recent["next_max_id"] = None
 
-            hashtag_posts = hashtag.get_posts()
+            try:
+                hashtag_posts = hashtag.get_posts()
 
-            for post in islice(hashtag_posts, policy["items_per_query"]):
-                if not post.owner_profile.is_private:
+                # Instagram's hashtag API only surfaces posts from public
+                # accounts — private posts never appear in hashtag feeds.
+                # Calling post.owner_profile.is_private would trigger a
+                # separate live HTTP request per post (lazy profile fetch)
+                # with no benefit, multiplying requests and rate-limit risk.
+                for post in islice(hashtag_posts, policy["items_per_query"]):
                     if not append(post):
                         break
+
+            except KeyError as exc:
+                if str(exc) == "'more_available'":
+                    # The Instagram API changed its hashtag response format and
+                    # Instaloader's SectionIterator cannot parse it.  Return a
+                    # specific error code so the UI can show a useful message.
+                    if not records:
+                        return {
+                            "error": "instagram_hashtag_api_incompatible",
+                            "notes": [
+                                "Instagram hashtag response is incompatible with "
+                                "the installed Instaloader version. "
+                                "Update Instaloader or use profile/saved-source queries."
+                            ],
+                        }
+                    # Partial results already collected — surface as a warning.
+                    if "instagram_hashtag_api_incompatible" not in warnings:
+                        warnings.append("instagram_hashtag_api_incompatible")
+                else:
+                    raise
         else:
-            profiles = ([il.Profile.from_username(loader.context,query['term'])] if query['dimension']=='saved_source'
-                        else il.TopSearchResults(loader.context,query["term"].lstrip("@")).get_profiles())
+            if query['dimension'] == 'saved_source':
+                try:
+                    profiles = [il.Profile.from_username(loader.context, query['term'])]
+                except Exception:
+                    candidates = [p for p in il.TopSearchResults(loader.context, query['term']).get_profiles() if p.username.lower() == query['term'].lower()]
+                    profiles = candidates if candidates else []
+            else:
+                profiles = il.TopSearchResults(loader.context, query["term"].lstrip("@")).get_profiles()
+
             # Profile search discovers public accounts; it is not full-text caption search.
             for profile in islice(profiles,3):
                 if profile.is_private:
@@ -136,6 +268,7 @@ if __name__ == "__main__":
         data=json.loads(sys.stdin.read())
         with contextlib.redirect_stdout(sys.stderr):
             result=collect(data)
-        print(json.dumps(result,ensure_ascii=False))
+        out = json.dumps(result, ensure_ascii=False).encode('utf-8')
+        sys.stdout.buffer.write(out + b'\n')
     except Exception:
-        print(json.dumps({"error":"instagram_worker_error"}))
+        sys.stdout.buffer.write(b'{"error":"instagram_worker_error"}\n')

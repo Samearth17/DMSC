@@ -65,3 +65,18 @@ def import_session_data(directory, username, encoded):
     with os.fdopen(fd,'w',encoding='utf-8') as handle:
         json.dump(cookies,handle)
     return {'username':username,'session_file':str(destination.resolve())}
+
+
+def save_session_cookies(directory, username, cookies):
+    if not isinstance(username,str) or not re.fullmatch(r'[A-Za-z0-9_.]{1,30}',username):
+        raise ValueError('Enter a valid Instagram username')
+    if not isinstance(cookies, dict) or not cookies.get('sessionid') or not cookies.get('csrftoken'):
+        raise ValueError('Both sessionid and csrftoken cookies are required')
+    directory=Path(directory)
+    directory.mkdir(parents=True,exist_ok=True,mode=0o700)
+    destination=directory/(uuid.uuid4().hex+'.json')
+    fd=os.open(destination,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+    with os.fdopen(fd,'w',encoding='utf-8') as handle:
+        json.dump(cookies,handle)
+    return {'username':username,'session_file':str(destination.resolve())}
+

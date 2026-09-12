@@ -106,16 +106,33 @@ class Controller:
         with self.repository() as repo:
             config=repo.setting('instagram_access',{})
             last=repo.setting('instagram_status',{})
+        has_local = Path('session-jacethepint.json').exists() or (Path(self.path).parent/'session-jacethepint.json').exists()
         return {'username':config.get('username',''),'configured':bool(config),
                 'status':last.get('status','Not tested' if config else 'Not configured'),
-                'error':last.get('error'),'tested_at':last.get('tested_at')}
+                'error':last.get('error'),'tested_at':last.get('tested_at'),
+                'has_local_file':has_local}
 
     def instagram_configure(self,data):
-        from app.connectors.instagram.access import import_session_data
+        from app.connectors.instagram.access import import_session_data, save_session_cookies, read_cookies
         with self.lock:
             if self.running:
                 raise ValueError('Wait for the current audit before changing platform access')
-            config=import_session_data(Path(self.path).parent/'sessions',data.get('username'),data.get('session_data'))
+            sessions_dir = Path(self.path).parent/'sessions'
+            if data.get('sessionid') and data.get('csrftoken'):
+                cookies = {'sessionid': data['sessionid'].strip(), 'csrftoken': data['csrftoken'].strip()}
+                if data.get('ds_user_id'):
+                    cookies['ds_user_id'] = data['ds_user_id'].strip()
+                config = save_session_cookies(sessions_dir, data.get('username','').strip(), cookies)
+            elif data.get('use_local_file'):
+                local_candidates = [Path('session-jacethepint.json'), Path(self.path).parent/'session-jacethepint.json']
+                found = next((p for p in local_candidates if p.exists()), None)
+                if not found:
+                    raise ValueError('No local session-jacethepint.json file found')
+                cookies = read_cookies(found)
+                username = data.get('username') or 'jacethepint'
+                config = save_session_cookies(sessions_dir, username, cookies)
+            else:
+                config=import_session_data(sessions_dir,data.get('username'),data.get('session_data'))
             with self.repository() as repo:
                 repo.set_setting('instagram_access',config)
                 repo.set_setting('instagram_status',{})
@@ -124,6 +141,27 @@ class Controller:
                 connector.access=config
                 connector.cache_scope=config['session_file']
         return self.instagram_status()
+
+    def instagram_scrape(self, data):
+        scrape_type = data.get('type', 'profile')
+        target = str(data.get('target', '')).strip()
+        limit = min(max(int(data.get('limit', 10)), 1), 50)
+        if not target:
+            raise ValueError('Enter a username or hashtag to scrape')
+        with self.lock:
+            if self.running:
+                raise ValueError('Wait for the audit before requesting Instagram scraping')
+            connector = self.connectors.get('instagram')
+            if not connector or not connector.available()[0]:
+                return {'error': 'instaloader_not_installed'}
+            if not connector.access:
+                return {'error': 'instagram_not_configured'}
+            return connector.operation({
+                'operation': 'scrape',
+                'scrape_type': scrape_type,
+                'target': target,
+                'limit': limit
+            }, timeout=60)
 
     def instagram_operation(self,data,operation):
         from app.normalization.models import now

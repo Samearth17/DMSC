@@ -60,6 +60,8 @@ def write(controller,path,data):
             return repo.add_value(path.rsplit('/',1)[-1].replace('-','_'),data.get('value'))
     if path=='/api/instagram/configure':
         return controller.instagram_configure(data)
+    if path=='/api/instagram/scrape':
+        return controller.instagram_scrape(data)
     if path in {'/api/instagram/test','/api/instagram/search'}:
         return controller.instagram_operation(data,'test' if path.endswith('test') else 'profiles')
     if path=='/api/reprocess':
