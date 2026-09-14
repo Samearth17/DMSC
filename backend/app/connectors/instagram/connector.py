@@ -16,10 +16,17 @@ class InstagramConnector(SourceConnector):
         self.cache_scope = None
 
     def operation(self, data, timeout=60):
+        import os
+        from pathlib import Path
         data = {**data,'access':dict(self.access)}
+        backend_dir = str(Path(__file__).resolve().parents[3])
+        env = dict(os.environ)
+        env['PYTHONIOENCODING'] = 'utf-8'
+        env['PYTHONPATH'] = backend_dir + os.pathsep + env.get('PYTHONPATH', '')
         try:
             result = subprocess.run([sys.executable,'-m','app.connectors.instagram.worker'],
-                input=json.dumps(data),capture_output=True,text=True,encoding='utf-8',timeout=timeout+5,check=False)
+                input=json.dumps(data),capture_output=True,text=True,encoding='utf-8',timeout=timeout+5,check=False,
+                cwd=backend_dir,env=env)
         except subprocess.TimeoutExpired:
             return {'error':'instagram_timeout'}
         try:

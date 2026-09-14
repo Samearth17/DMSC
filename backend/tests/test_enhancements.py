@@ -168,5 +168,49 @@ class EnhancementsTests(unittest.TestCase):
             self.assertIn('records', result)
             self.assertIn('instagram_time_budget_reached', result.get('notes', []))
 
+    def test_save_session_cookies(self):
+        import tempfile, json
+        from pathlib import Path
+        from app.connectors.instagram.access import save_session_cookies
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            res = save_session_cookies(tmpdir, 'testuser', {'sessionid': 'sess123', 'csrftoken': 'csrf456'})
+            self.assertEqual(res['username'], 'testuser')
+            session_file = Path(res['session_file'])
+            self.assertTrue(session_file.exists())
+            with open(session_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            self.assertEqual(data.get('sessionid'), 'sess123')
+            self.assertEqual(data.get('csrftoken'), 'csrf456')
+
+    def test_instagram_scrape_controller(self):
+        from app.api.controller import Controller
+        from unittest.mock import MagicMock
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mock_connector = MagicMock()
+            mock_connector.available.return_value = (True, 'ready')
+            mock_connector.access = {'username': 'testuser'}
+            mock_connector.operation.return_value = {
+                'profile': {'username': 'indianarmy'},
+                'records': [{'id': '123', 'shortcode': 'abc'}]
+            }
+            import os
+            db_path = os.path.join(tmpdir, 'test.db')
+            c = Controller(db_path, {'instagram': mock_connector})
+            mock_connector.access = {'username': 'testuser'}
+
+            res = c.instagram_scrape({'type': 'profile', 'target': 'indianarmy', 'limit': 5})
+            self.assertIn('profile', res)
+            self.assertEqual(res['profile']['username'], 'indianarmy')
+            mock_connector.operation.assert_called_once_with({
+                'operation': 'scrape',
+                'scrape_type': 'profile',
+                'target': 'indianarmy',
+                'limit': 5
+            }, timeout=90)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,10 @@
+# Core dependencies
+PyYAML>=6.0.2,<7
+tzdata>=2025.2
+
+# Platform connectors
+yt-dlp>=2026.8.19
+instaloader>=4.15.3,<5
+
+# Editable install of Watchtower package
+-e .
