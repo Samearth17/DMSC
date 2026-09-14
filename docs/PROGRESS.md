@@ -34,4 +34,11 @@ Tracking changes, feature additions, and test suite execution results across ver
 - **Dedicated Enhancements Test Suite (`backend/tests/test_enhancements.py`)**: Added test suite verifying complex multilingual boolean queries, OR search disjunctions, quoted phrase matches, Whisper audio transcript relevance analysis, policy defaults (Instagram 60s, Web 5 pages), parallel execution timing (< 0.45s for 2 x 0.25s connectors), and Instagram worker early exit on budget approach.
 - **Test Suite Results**: All 67 tests passed (6.292s).
 
+## [2026-09-14] Step 6: Upstream Instagram Scraper & Session Wizard Integration
+- **Upstream Merge (`inddivyansh/DMSC`)**: Integrated upstream repository changes into `main` (commit `bbf5015`), merging upstream's Instagram scraper dashboard and session wizard while preserving local concurrency, boolean rules, WhisperFlow transcription, and timeout guards.
+- **Instagram Session Wizard**: Built `save_session_cookies` in `app.connectors.instagram.access` and cookie session saving in `app.api.controller`, enabling users to paste session cookies (`sessionid`, `ds_user_id`, `csrftoken`) directly in the UI without CLI commands.
+- **Dedicated Scraper UI & Export**: Added `#instagram` view in UI featuring real-time status indicators (local session file detection, CLI session detection), on-demand profile and hashtag scraping with configurable post limits, interactive post cards, and export to CSV/JSON.
+- **Hashtag Resilience**: Integrated modern hashtag section extraction with fallback to `hashtag.get_posts()` for backwards compatibility and mock safety.
+- **Test Suite Results**: All 69 tests passed in 6.584s (including 2 new tests in `backend/tests/test_enhancements.py`).
+
 ---
