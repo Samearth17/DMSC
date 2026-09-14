@@ -1,69 +1,862 @@
 'use strict';
-const $=id=>document.getElementById(id);
-const state={profile:null,status:null,latest:null,selectedRun:null,view:'dashboard',values:{},polling:false};
-const names={geography:'Geography',entities:'Entities',keywords:'Keywords',hashtags:'Hashtags',incident_types:'Incident types',youtube:'YouTube',instagram:'Instagram',news:'News',x:'X',reddit:'Reddit',meta:'Facebook / Meta',web:'Web'};
-const views={dashboard:'Dashboard',profile:'Monitoring profile',run:'Run audit',history:'Audit history',platforms:'Platforms',records:'Records & search',events:'Events',sources:'Sources',alerts:'Alerts',settings:'Settings'};
-const metrics={queries_generated:'Queries generated',queries_executed:'Queries executed',requests:'HTTP requests',successful_requests:'Successful requests',failed_requests:'Failed requests',cached_queries:'Cached queries',connector_calls:'Collector calls',retry_count:'Retries',sources_discovered:'Sources discovered',items_discovered:'Items discovered',items_checked:'Items checked',new_items:'New raw revisions',items_duplicate:'Known item identities',cached_items:'Unchanged raw records',within_time_window:'Within time window',items_stale:'Stale filtered',items_unknown_time:'Unknown publication time',items_after_window:'After window',relevant_items:'Relevant records',errors:'Errors / warnings',rate_limited_calls:'Rate-limited calls'};
-const errors={instagram_not_configured:'Not configured. Import a local Instaloader session in Settings.',instagram_login_required:'Authentication required. Import a valid session.',instagram_session_expired:'Session expired. Renew the session through Instaloader and import it again.',instagram_authentication_failed:'Authentication failed. Check the account and renew its session.',instagram_rate_limited:'Rate limited. Collection stopped; wait before trying again.',instagram_access_control_required:'Instagram requires an access check. Complete it through Instagram.',instagram_access_or_network_error:'Instagram could not be reached or denied access.',instaloader_not_installed:'Instaloader is unavailable. Install the Instagram dependency during setup.',youtube_tls_error:'YouTube TLS verification failed. Check the machine certificate store.',youtube_timeout:'YouTube exceeded its time budget. Review limits and timeout.',youtube_extraction_failed:'YouTube metadata extraction failed. Access may be blocked or yt-dlp may need an update.',no_enabled_values:'No enabled criteria or saved sources.',skipped_after_rate_limit:'Query skipped after the platform rate-limited an earlier request.',application_interrupted:'Watchtower stopped before this work finished. Coverage is incomplete; run a new audit.'};
-function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
-function empty(text){return node('p',text,'empty');}
-function notice(text){$('notice').textContent=text;}
-function date(v){if(!v)return 'Unavailable';try{return new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short',timeZone:state.profile?.time_window.timezone||'UTC'}).format(new Date(v));}catch{return v;}}
-function pill(status){return node('span',status||'Not audited','pill '+(status||''));}
-async function api(path,data,method){const r=await fetch(path,{method:method||(data===undefined?'GET':'POST'),headers:{'X-Watchtower-Token':document.querySelector('meta[name=watchtower-token]').content,'Content-Type':'application/json'},body:data===undefined?undefined:JSON.stringify(data)});const result=await r.json();if(!r.ok)throw new Error(result.error||'Request failed');return result;}
-function action(text,callback,cls){const b=node('button',text,cls);b.type='button';b.addEventListener('click',async()=>{b.disabled=true;try{await callback();}catch(e){notice(e.message);}finally{b.disabled=false;}});return b;}
-function bind(id,callback){$(id).addEventListener('click',async()=>{$(id).disabled=true;try{await callback();}catch(e){notice(e.message);}finally{$(id).disabled=false;}});}
-function showRaw(title,data){$('dialog-title').textContent=title;$('dialog-body').replaceChildren(node('pre',JSON.stringify(data,null,2)));if(!$('detail-dialog').open)$('detail-dialog').showModal();}
-function link(text,url){const e=node('a',text);try{const u=new URL(url);if(['https:','http:'].includes(u.protocol)){e.href=u.href;e.target='_blank';e.rel='noopener noreferrer';}}catch{}return e;}
-function table(rows){const wrap=node('div',undefined,'table-wrap'),t=node('table');for(const[k,v]of rows){const tr=node('tr');tr.append(node('th',k),node('td',v===null||v===undefined?'Not measured':String(v)));t.append(tr);}wrap.append(t);return wrap;}
-function details(title,child){const e=node('details',undefined,'panel');e.append(node('summary',title),child);return e;}
-const templates={
-dashboard:'<div id="overview"></div><h2>Platform coverage</h2><div id="dashboard-platforms" class="platform-grid"></div><h2>Latest candidate events</h2><div id="latest-events"></div>',
-profile:'<div class="section-heading"><p>Add values once, then select them for future audits. Enabled categories are independent discovery lanes.</p><button id="save-profile" class="primary">Save profile</button></div><label class="name-field">Profile name<input id="profile-name" maxlength="120"></label><div id="dimensions" class="dimension-grid"></div><h2>Enabled platforms</h2><div id="platform-select" class="platform-grid"></div><div class="panel"><h2>Saved sources</h2><p>Optional public Instagram usernames and RSS feeds. These share the platform query budget.</p><div id="saved-sources"></div></div>',
-run:'<div class="panel"><h2>Audit configuration</h2><p id="run-summary"></p><p>Preview and Run save the current profile. Preview makes no external requests.</p><div class="limit-grid"><label>Time window<select id="window-hours"><option value="1">Last 1 hour</option><option value="6">Last 6 hours</option><option value="12">Last 12 hours</option><option value="24" selected>Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="custom">Custom</option></select></label><label>Display timezone<input id="window-zone" value="UTC"></label></div><div id="custom-window" class="limit-grid" hidden><label>From (browser local time)<input id="window-start" type="datetime-local"></label><label>To (browser local time)<input id="window-end" type="datetime-local"></label></div><h3>Platform collection policies</h3><p>Budgets are bounded. Internal collector HTTP requests may be uninstrumented.</p><div id="policies"></div><div class="actions"><button id="preview-plan">Preview queries</button><button id="run-audit" class="primary">Run audit</button></div><div id="query-plan"></div></div><div id="live-report"></div>',
-history:'<div class="history-layout"><div id="run-list" class="panel"></div><div id="history-report"></div></div>',
-platforms:'<div id="platform-cards" class="platform-grid"></div><div id="platform-report"></div>',
-records:'<form id="search-form" class="panel"><div id="search-fields" class="limit-grid"></div><p>Search historical audits. Current means inside the original audit window. Results are limited to 1,000; narrow filters for larger histories.</p><button type="submit" class="primary">Search records</button></form><div id="record-results"></div>',
-events:'<p>Candidate groups require review. Repeated claims do not prove independent corroboration.</p><div id="event-results"></div>',
-sources:'<p>History covers returned records, not exhaustive account inventories.</p><div id="source-results"></div>',
-alerts:'<p>Review queue: current records matching at least 75% of weighted enabled categories. An alert is not verification.</p><div id="alert-results"></div>',
-settings:'<div class="panel"><h2>Instagram access</h2><p>Import a local Instaloader session created through its normal login workflow. Cookies remain on this computer and never appear in reports.</p><div class="limit-grid"><label>Username<input id="ig-username" autocomplete="off"></label><label>Local session file<input id="ig-session" type="file"></label></div><div class="actions"><button id="ig-configure">Import session</button><button id="ig-test">Test connection</button></div><p id="ig-status"></p></div><div class="panel"><h2>Instagram profile search</h2><p>Search up to 20 discovered public profiles, then filter available follower metadata.</p><div class="limit-grid"><label>Search<input id="ig-search"></label><label>Minimum followers<input id="ig-min" type="number" min="0"></label><label>Maximum followers<input id="ig-max" type="number" min="0"></label></div><button id="ig-find">Search profiles</button><div id="ig-results"></div></div><div class="panel"><h2>Scheduled audits</h2><p>Uses the saved profile. Keep Watchtower running and the computer awake.</p><label class="check"><input id="schedule-enabled" type="checkbox">Enable schedule</label><label>Interval (minutes)<input id="schedule-minutes" type="number" min="5" max="10080" value="60"></label><button id="save-schedule">Save schedule</button><p id="schedule-next"></p></div>'};
-for(const[key,title]of Object.entries(views)){const b=action(title,()=>navigate(key),'nav');b.dataset.view=key;$('navigation').append(b);const section=node('section',undefined,'view');section.id='view-'+key;section.hidden=key!=='dashboard';section.innerHTML=templates[key];$('views').append(section);} // Static templates only; all external values use textContent.
-async function navigate(view){state.view=view;for(const section of document.querySelectorAll('.view'))section.hidden=section.id!=='view-'+view;for(const b of document.querySelectorAll('.nav'))b.classList.toggle('active',b.dataset.view===view);$('view-title').textContent=views[view];if(view==='history')await history();if(view==='records')await search();if(view==='events')renderEvents($('event-results'),await api('/api/incidents'));if(view==='sources')await sources();if(view==='alerts')await alerts();if(view==='settings')await instagramStatus();if(view==='run')runSummary();}
-function renderDimension(category){const d=state.profile.dimensions[category],card=node('article',undefined,'dimension'),head=node('header'),label=node('label',names[category],'check'),enabled=document.createElement('input');enabled.type='checkbox';enabled.checked=d.enabled;enabled.addEventListener('change',()=>{d.enabled=enabled.checked;notice('Profile changed. Save to persist selections.');});label.prepend(enabled);head.append(label);card.append(head);const filter=document.createElement('input');filter.type='search';filter.placeholder='Search '+names[category].toLowerCase();filter.setAttribute('aria-label',filter.placeholder);card.append(filter);const list=node('div',undefined,'value-list'),count=node('p','', 'muted');
-function draw(){list.replaceChildren();for(const value of state.values[category].filter(v=>v.value.toLowerCase().includes(filter.value.toLowerCase()))){const row=node('div',undefined,'value-row'),l=node('label',value.value,'check'),check=document.createElement('input');check.type='checkbox';check.checked=d.values.includes(value.value);check.addEventListener('change',()=>{d.values=check.checked?[...new Set([...d.values,value.value])]:d.values.filter(v=>v!==value.value);count.textContent=`Selected: ${d.values.length}`;notice('Selection changed. Save profile to persist.');});l.prepend(check);row.append(l,action('Archive',async()=>{await api(`/api/values/${category}/${value.id}`,undefined,'DELETE');d.values=d.values.filter(v=>v!==value.value);state.values[category]=await api('/api/values/'+category);draw();notice('Value archived. Historical snapshots retained.');},'small'));list.append(row);}if(!list.children.length)list.append(node('p','No saved values match.','muted'));count.textContent=`Selected: ${d.values.length}`;}
-filter.addEventListener('input',draw);draw();const add=document.createElement('input');add.placeholder='New '+names[category].toLowerCase();add.maxLength=200;add.setAttribute('aria-label',add.placeholder);card.append(list,count,add,action('+ Add '+names[category],async()=>{const value=await api('/api/values/'+category,{value:add.value});state.values[category]=await api('/api/values/'+category);add.value='';draw();notice(`${value.value} saved to the value library. Select it to use it in an audit.`);}));return card;}
-function renderProfile(){const p=state.profile;$('profile-name').value=p.name;$('dimensions').replaceChildren(...Object.keys(p.dimensions).map(renderDimension));$('platform-select').replaceChildren();for(const[platform,enabled]of Object.entries(p.platforms)){const c=node('article',undefined,'platform'),l=node('label',names[platform],'check'),check=document.createElement('input');check.type='checkbox';check.checked=enabled;check.disabled=['x','reddit'].includes(platform);check.addEventListener('change',()=>{p.platforms[platform]=check.checked;runSummary();});l.prepend(check);c.append(l,node('p',check.disabled?'Deferred':platform==='instagram'?'Requires configured session':'Access checked during audit'));$('platform-select').append(c);}renderSaved();renderPolicies();const w=p.time_window;$('window-hours').value=w.hours===null?'custom':w.hours;$('window-zone').value=w.timezone;$('custom-window').hidden=w.hours!==null;if(w.start_time)$('window-start').value=localInput(w.start_time);if(w.end_time)$('window-end').value=localInput(w.end_time);runSummary();}
-function localInput(v){const d=new Date(v);return new Date(d-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
-function renderSaved(){$('saved-sources').replaceChildren();for(const platform of ['instagram','news']){const box=node('div',undefined,'panel');box.append(node('h3',names[platform]));for(const value of state.profile.saved_sources[platform]||[]){const row=node('div',undefined,'actions');row.append(node('span',value),action('Remove',()=>{state.profile.saved_sources[platform]=state.profile.saved_sources[platform].filter(v=>v!==value);renderSaved();}));box.append(row);}const input=document.createElement('input');input.placeholder=platform==='instagram'?'Public username without @':'https://publisher.example/rss';input.setAttribute('aria-label',platform+' saved source');box.append(input,action('Add saved source',()=>{const value=input.value.trim();if(!value)throw new Error('Enter a source');state.profile.saved_sources[platform]=[...new Set([...(state.profile.saved_sources[platform]||[]),value])];renderSaved();notice('Save profile to persist source changes.');}));$('saved-sources').append(box);}}
-function renderPolicies(){$('policies').replaceChildren();for(const[platform,p]of Object.entries(state.profile.policies)){if(['x','reddit'].includes(platform))continue;const grid=node('div',undefined,'limit-grid');for(const[key,label,min,max]of [['query_limit','Query limit',1,100],['items_per_query','Items per query',1,100],['timeout_seconds','Timeout (seconds)',1,300],['cache_ttl_seconds','Cache (seconds)',0,86400],['min_interval_seconds','Minimum interval (seconds)',0,300],['retries','Transient retries',0,3],['backoff_seconds','Backoff (seconds)',0,60],['pages_per_query','Web pages per query',0,10]]){const l=node('label',label),input=document.createElement('input');input.type='number';input.min=min;input.max=max;input.value=p[key];input.addEventListener('change',()=>p[key]=Number(input.value));l.append(input);grid.append(l);}$('policies').append(details(names[platform],grid));}}
-function collectProfile(){const p=structuredClone(state.profile);p.name=$('profile-name').value;const h=$('window-hours').value;p.time_window={hours:h==='custom'?null:Number(h),timezone:$('window-zone').value};if(h==='custom'){const start=new Date($('window-start').value),end=new Date($('window-end').value);if(isNaN(start)||isNaN(end))throw new Error('Choose both custom dates');p.time_window.start_time=start.toISOString();p.time_window.end_time=end.toISOString();}return p;}
-async function saveProfile(){const saved=await api('/api/profile',collectProfile());state.profile.time_window=saved.time_window;state.profile.name=saved.name;runSummary();notice('Profile saved. Values and selections persist across restarts.');}
-function runSummary(){if(state.profile)$('run-summary').textContent=`${state.profile.name} · ${Object.entries(state.profile.platforms).filter(([,v])=>v).map(([p])=>names[p]).join(', ')||'No platforms selected'}`;}
-bind('save-profile',saveProfile);$('window-hours').addEventListener('change',()=>$('custom-window').hidden=$('window-hours').value!=='custom');
-bind('preview-plan',async()=>{await saveProfile();const plan=await api('/api/plan');$('query-plan').replaceChildren();for(const[p,queries]of Object.entries(plan)){if(!queries.length)continue;const list=node('ol');queries.forEach(q=>list.append(node('li',q.text)));$('query-plan').append(details(`${names[p]} · ${queries.length} queries`,list));}});
-bind('run-audit',async()=>{await saveProfile();const r=await api('/api/run',{});state.selectedRun=r.run_id;notice('Audit started. Progress updates automatically.');await poll();});
-function summary(report){const box=node('div',undefined,'panel');if(!report?.platforms){box.append(empty('No completed audit yet. Configure a profile, preview, then run an audit.'));return box;}box.append(node('h2',`Audit ${report.id.slice(0,8)}`),pill(report.status));const w=report.time_window;box.append(node('p',w?`${date(w.start_time)} — ${date(w.end_time)} · ${w.timezone}`:'Legacy audit: time window unavailable'));box.append(table([['Started',date(report.started_at)],['Finished',report.finished_at?date(report.finished_at):'Running'],['Duration',report.duration_seconds==null?'Running':report.duration_seconds+' seconds'],...Object.entries(metrics).map(([k,v])=>[v,report.metrics[k]]),['Candidate events',report.event_count]]));box.append(action('Configuration snapshot',()=>showRaw('Configuration used',report.snapshot)));const ex=node('div',undefined,'actions');for(const format of ['json','csv'])ex.append(action('Export '+format.toUpperCase(),()=>download(report.id,'normalized',format)));box.append(ex);return box;}
-function platformCards(target,report){target.replaceChildren();for(const platform of ['youtube','instagram','news','x','reddit','meta','web']){const a=report?.platforms?.[platform],cap=state.capabilities?.[platform],card=node('article',undefined,'platform');card.append(node('h3',names[platform]),pill(a?.status),node('p',`Items: ${a?.metrics.items_checked??'—'} · Relevant: ${a?.metrics.relevant_items??'—'} · Errors: ${a?.metrics.errors??'—'}`),node('p','Last audit: '+(report?date(report.started_at):'Not run')),node('p',cap?`Search: ${cap.search?'yes':'no'} · Profiles: ${cap.profiles?'yes':'no'} · Saved sources: ${cap.saved_sources?'yes':'no'}`:''),action('View report',async()=>{await navigate('platforms');state.selectedRun=report?.id;if(report)await platformReport(report.id,platform);else $('platform-report').replaceChildren(empty('This platform has not been audited.'));}));target.append(card);}}
-async function platformReport(runId,platform){const a=await api(`/api/audits/${runId}/platforms/${platform}`),box=node('article',undefined,'panel');box.append(node('h2',names[platform]+' audit'),pill(a.status),node('p',`Audit ${runId.slice(0,8)} · ${date(a.time_window?.start_time)} — ${date(a.time_window?.end_time)}`),table([...Object.entries(metrics).map(([k,v])=>[v,a.metrics[k]]),['Duration (seconds)',a.duration_seconds]]));const failures=node('div');(a.errors||[]).forEach(e=>failures.append(node('p',(errors[e]||e)+' ['+e+']')));(a.notes||[]).forEach(n=>failures.append(node('p',n+' [informational]')));if(!(a.errors||[]).length)failures.append(node('p',a.status==='disabled'?'Platform not selected.':'No recorded errors. Zero results do not establish absence of activity.'));box.append(details('Errors & limitations',failures));const qs=node('div');a.queries.forEach(q=>qs.append(table([['Query',q.text],['Dimension',q.dimension],['Status',q.status],['Retrieval',q.retrieval_status||'Not executed'],['Errors',q.errors.map(e=>errors[e]||e).join('; ')||'None']])));box.append(details('Queries',qs));const src=node('div');Object.values(a.sources).forEach(s=>src.append(action(s.account||s.source_id,()=>sourceDetail(platform,s.source_id))));if(!src.children.length)src.append(node('p','No accessible sources returned in this audit.'));box.append(details('Sources',src),action('Configuration used',()=>showRaw('Configuration snapshot',a.snapshot)));const ex=node('div',undefined,'actions');for(const kind of ['raw','normalized','events','platform_audits'])for(const format of ['json','csv'])ex.append(action(`${kind} ${format.toUpperCase()}`,()=>download(runId,kind,format)));box.append(details('Export run data',ex),node('h3','Retained records (including filtered items)'));renderRecords(box,a.records,true);$('platform-report').replaceChildren(box);}
-function recordCard(item){const e=item.event,a=item.analysis,card=node('article',undefined,'result'),title=node('h3');title.append(link(e.title||e.metadata?.title||e.content.slice(0,160)||e.item_id,e.url));card.append(node('div',`${names[e.platform]||e.platform} · ${e.account||e.source_id}`,'result-top'),title,pill(a.time_classification||'Legacy / no time filter'),pill(a.evidence_level),node('p',e.content.slice(0,900)),node('p',`Published: ${date(e.published_at)} (${e.published_at_source||'provenance unavailable'}) · Collected: ${date(e.collected_at)}`,'muted'),node('p',`Relevance: ${a.relevance_score??'—'} · Matched: ${Object.entries(a.matches).map(([k,v])=>names[k]+': '+v.join(', ')).join(' / ')||'None'}`,'muted'));card.append(action('View raw data',async()=>showRaw('Raw source evidence',await api('/api/evidence?'+new URLSearchParams({run_id:item.run_id||state.selectedRun,event_id:item.id})))),action('Source history',()=>sourceDetail(e.platform,e.source_id)),action('Analysis details',()=>showRaw('Analysis and provenance',a)));return card;}
-function renderRecords(target,items,append=false){if(!append)target.replaceChildren();if(!items.length)target.append(empty('No records match. Check platform reports for failures and filtered items.'));else items.forEach(i=>target.append(recordCard(i)));}
-function renderEvents(target,events){target.replaceChildren();if(!events.length){target.append(empty('No current relevant event candidates.'));return;}for(const e of events){const c=node('article',undefined,'result');c.append(node('h3',e.title),pill(e.evidence_level),node('p',e.summary),node('p',`${e.source_count} source identities · ${e.platforms.map(p=>names[p]).join(', ')} · ${date(e.first_seen_at)}`),node('p',`Confidence: ${e.confidence===null?'Not assessed':e.confidence}`,'muted'),node('p',e.confidence_explanation,'muted'),action('Review supporting records',async()=>{const items=await api('/api/records?'+new URLSearchParams({run_id:e.run_id}));$('dialog-title').textContent='Supporting records';renderRecords($('dialog-body'),items.filter(i=>e.record_ids.includes(i.id)));$('detail-dialog').showModal();}));target.append(c);}}
-async function history(){const runs=await api('/api/audits');$('run-list').replaceChildren();if(!runs.length)$('run-list').append(empty('No audit history yet.'));for(const run of runs)$('run-list').append(action(`${date(run.started_at)} · ${run.status}`,async()=>{state.selectedRun=run.id;await historyReport(run.id);}));if(state.selectedRun)await historyReport(state.selectedRun);}
-async function historyReport(id){const r=await api('/api/audits/'+id),box=summary(r);if(!r.platforms)return;for(const[p,a]of Object.entries(r.platforms))box.append(action(`${names[p]} · ${a.status}`,async()=>{await navigate('platforms');await platformReport(id,p);}));box.append(action('Reprocess with saved profile',async()=>{const revision=await api('/api/reprocess',{run_id:id});showRaw('New analysis revision; original audit unchanged',revision);notice('Analysis revision saved. No collection requests were made.');}),action('View analysis revisions',async()=>showRaw('Saved analysis revisions',await api('/api/revisions?run_id='+id))));$('history-report').replaceChildren(box);}
-for(const[key,label,choices]of [['q','Search text'],['platform','Platform',['','youtube','instagram','news','meta','web']],['source','Source / account'],['classification','Time classification',['CURRENT','STALE','UNKNOWN_TIME','AFTER_WINDOW','']],['entities','Entity'],['keywords','Keyword'],['hashtags','Hashtag'],['geography','Geography'],['incident_types','Incident type'],['start_time','Published from'],['end_time','Published to'],['evidence_level','Evidence',['','Unverified']]]){const l=node('label',label),input=document.createElement(choices?'select':'input');input.name=key;if(choices)for(const v of choices){const o=node('option',v||'All');o.value=v;input.append(o);}else input.type=key.endsWith('_time')?'datetime-local':'search';l.append(input);$('search-fields').append(l);}
-async function search(){const p=new URLSearchParams();for(const[k,v]of new FormData($('search-form')))if(v)p.set(k,k.endsWith('_time')?new Date(v).toISOString():v);renderRecords($('record-results'),await api('/api/search?'+p));}
-$('search-form').addEventListener('submit',e=>{e.preventDefault();search().catch(e=>notice(e.message));});
-async function sourceDetail(platform,id){const history=await api('/api/source-history?'+new URLSearchParams({platform,source_id:id})),body=$('dialog-body');body.replaceChildren();for(const s of history){const card=node('article',undefined,'panel');card.append(node('h3','Audit '+s.run_id.slice(0,8)),pill(s.status),table([['Last attempt',date(s.last_audited)],['Checked',s.items_checked],['New raw revisions',s.new_items],['Relevant',s.relevant_items],['Stale',s.items_stale||0],['Unknown time',s.items_unknown_time||0],['Requests',s.requests],['Duration',s.duration_seconds],['Errors',(s.errors||[]).join(', ')||'None']]),action('View audit',async()=>{$('detail-dialog').close();state.selectedRun=s.run_id;await navigate('history');}));body.append(card);}$('dialog-title').textContent=names[platform]+' · '+id;if(!$('detail-dialog').open)$('detail-dialog').showModal();}
-async function sources(){const items=await api('/api/sources');$('source-results').replaceChildren();if(!items.length)$('source-results').append(empty('No sources have returned records yet.'));for(const s of items){const card=node('article',undefined,'panel');card.append(node('h3',names[s.platform]+' · '+s.source_id),table([['Last seen',date(s.last_seen_at)],['Last collected',date(s.last_collected_at)],['Last success',date(s.last_success)],['Last item',s.last_item_id],['Recorded failures',s.failure_count],['Rate limits',s.rate_limit_count]]),action('Audit history',()=>sourceDetail(s.platform,s.source_id)));$('source-results').append(card);}}
-async function alerts(){const items=await api('/api/alerts');$('alert-results').replaceChildren();if(!items.length)$('alert-results').append(empty('No high-relevance alerts.'));for(const a of items){const card=node('article',undefined,'panel');card.append(node('h3','Relevance match'),pill(a.evidence_level),node('p',date(a.created_at)),action('Review record',async()=>{const items=await api('/api/records?run_id='+a.run_id);$('dialog-title').textContent='Alert evidence';renderRecords($('dialog-body'),items.filter(i=>i.id===a.record_id));$('detail-dialog').showModal();}));$('alert-results').append(card);}}
-async function download(runId,kind,format){const r=await fetch('/api/export?'+new URLSearchParams({run_id:runId,kind,format}),{headers:{'X-Watchtower-Token':document.querySelector('meta[name=watchtower-token]').content}});if(!r.ok)throw new Error('Export failed');const u=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=u;a.download=`watchtower-${kind}-${runId.slice(0,8)}.${format}`;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);}
-async function instagramStatus(){const s=await api('/api/instagram');$('ig-username').value=s.username;$('ig-status').textContent=s.error?(errors[s.error]||s.error):s.status;}
-bind('ig-configure',async()=>{const file=$('ig-session').files[0];if(!file)throw new Error('Choose a local Instaloader session file.');if(file.size>1024*1024)throw new Error('Session file must be 1 MB or smaller.');const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));await api('/api/instagram/configure',{username:$('ig-username').value,session_data:btoa(binary)});$('ig-session').value='';await instagramStatus();notice('Session imported. Test connection to check access.');});
-bind('ig-test',async()=>{$('ig-status').textContent='Testing connection…';const r=await api('/api/instagram/test',{});$('ig-status').textContent=r.error?(errors[r.error]||r.error):r.status;});
-bind('ig-find',async()=>{const r=await api('/api/instagram/search',{search:$('ig-search').value,minimum:$('ig-min').value===''?null:Number($('ig-min').value),maximum:$('ig-max').value===''?null:Number($('ig-max').value)});$('ig-results').replaceChildren();if(r.error){$('ig-results').append(empty(errors[r.error]||r.error));return;}$('ig-results').append(node('p',r.scope));if(!r.profiles.length)$('ig-results').append(empty('No accessible profiles matched.'));for(const p of r.profiles){const c=node('article',undefined,'result');c.append(link('@'+p.username+' · '+p.display_name,p.url),node('p',p.biography),table([['Followers',p.followers],['Following',p.following],['Posts',p.post_count],['Verified account badge',p.verified_account?'Yes':'No']]),action('Monitor profile',async()=>{state.profile.saved_sources.instagram=[...new Set([...(state.profile.saved_sources.instagram||[]),p.username])];await saveProfile();renderSaved();notice('Source saved. Enable Instagram to include it in audits.');}));$('ig-results').append(c);}});
-bind('save-schedule',async()=>{const s=await api('/api/schedule',{enabled:$('schedule-enabled').checked,interval_minutes:Number($('schedule-minutes').value)});$('schedule-next').textContent=s.next_run_at?'Next: '+date(new Date(s.next_run_at*1000).toISOString()):'Schedule disabled';notice('Schedule saved.');});
-$('close-dialog').addEventListener('click',()=>$('detail-dialog').close());
-async function poll(){if(state.polling)return;state.polling=true;try{state.status=await api('/api/status');$('run-state').textContent=state.status.running?'Audit running':'Ready';$('run-state').className='pill '+(state.status.running?'running':'');$('run-audit').disabled=state.status.running;const runs=await api('/api/audits');if(runs.length){state.latest=await api('/api/audits/'+runs[0].id);$('overview').replaceChildren(summary(state.latest));platformCards($('dashboard-platforms'),state.latest);platformCards($('platform-cards'),state.latest);renderEvents($('latest-events'),await api('/api/incidents?run_id='+runs[0].id));if(state.view==='run'){$('live-report').replaceChildren(summary(state.latest));if(state.latest.platforms)for(const[p,a]of Object.entries(state.latest.platforms))$('live-report').append(node('p',`${names[p]}: ${a.status} · ${a.metrics.items_checked} items · ${a.metrics.relevant_items} relevant`));}if(state.status.last_error)notice(state.status.last_error);}else{$('overview').replaceChildren(empty('No audits yet. Start with Monitoring profile.'));platformCards($('dashboard-platforms'),null);platformCards($('platform-cards'),null);}}catch(e){notice('Could not refresh status: '+e.message);}finally{state.polling=false;}}
-async function init(){state.profile=await api('/api/profile');state.capabilities=await api('/api/platforms');for(const category of Object.keys(state.profile.dimensions))state.values[category]=await api('/api/values/'+category);renderProfile();await poll();if(state.status){$('schedule-enabled').checked=state.status.schedule.enabled;$('schedule-minutes').value=state.status.schedule.interval_minutes;}setInterval(poll,2500);}
-init().catch(e=>notice('Application could not load: '+e.message));
+const $ = id => document.getElementById(id);
+const state = { profile: null, status: null, latest: null, selectedRun: null, view: 'dashboard', values: {}, polling: false };
+
+const names = {
+  geography: 'Geography', entities: 'Entities', keywords: 'Keywords', hashtags: 'Hashtags',
+  incident_types: 'Incident types', youtube: 'YouTube', instagram: 'Instagram', news: 'News',
+  x: 'X', reddit: 'Reddit', meta: 'Facebook / Meta', web: 'Web'
+};
+
+// User-friendly navigation labels
+const views = {
+  dashboard: 'Dashboard',
+  profile: 'Setup Profile',
+  run: 'Start Audit',
+  history: 'Past Audits',
+  platforms: 'Platform Results',
+  records: 'Search Records',
+  events: 'Key Findings',
+  sources: 'Monitored Sources',
+  alerts: 'Alerts',
+  settings: 'Settings'
+};
+
+// Only the metrics we actually show to users
+const userMetrics = {
+  items_checked: 'Items scanned',
+  relevant_items: 'Relevant items',
+  sources_discovered: 'Sources found',
+  errors: 'Issues'
+};
+
+const errorMessages = {
+  instagram_not_configured: 'Instagram not configured. Go to Settings to import your session.',
+  instagram_session_expired: 'Instagram session expired. Please re-import in Settings.',
+  instagram_rate_limited: 'Instagram rate limited. Wait a few minutes and try again.',
+  youtube_timeout: 'YouTube took too long. Try reducing the time window.',
+  youtube_extraction_failed: 'YouTube could not extract data. Try again later.',
+  no_enabled_values: 'No search terms enabled. Add keywords in Setup Profile.',
+  application_interrupted: 'Audit was interrupted. Please run a new one.'
+};
+
+/* ── Helpers ── */
+function node(tag, text, cls) {
+  const e = document.createElement(tag);
+  if (text !== undefined) e.textContent = text;
+  if (cls) e.className = cls;
+  return e;
+}
+function empty(text) { return node('p', text, 'empty'); }
+function notice(text) { $('notice').textContent = text; }
+
+function formatDate(v) {
+  if (!v) return '—';
+  try {
+    return new Intl.DateTimeFormat('en-IN', {
+      dateStyle: 'medium', timeStyle: 'short',
+      timeZone: 'Asia/Kolkata'
+    }).format(new Date(v));
+  } catch { return v; }
+}
+
+function pill(status, extraCls) {
+  const cls = extraCls ? `pill ${extraCls}` : `pill ${status || ''}`;
+  const label = {
+    'complete': '✅ Complete',
+    'failed': '❌ Failed',
+    'partial': '⚠️ Partial',
+    'running': '⏳ Running',
+    'disabled': '—',
+    'CURRENT': '🕐 Current',
+    'STALE': '📅 Old',
+    'UNKNOWN_TIME': '❓ Unknown date',
+    'AFTER_WINDOW': '⏭️ After window'
+  }[status] || status || 'Not audited';
+  return node('span', label, cls);
+}
+
+async function api(path, data, method) {
+  const r = await fetch(path, {
+    method: method || (data === undefined ? 'GET' : 'POST'),
+    headers: {
+      'X-Watchtower-Token': document.querySelector('meta[name=watchtower-token]').content,
+      'Content-Type': 'application/json'
+    },
+    body: data === undefined ? undefined : JSON.stringify(data)
+  });
+  const result = await r.json();
+  if (!r.ok) throw new Error(result.error || 'Request failed');
+  return result;
+}
+
+function action(text, callback, cls) {
+  const b = node('button', text, cls);
+  b.type = 'button';
+  b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await callback(); } catch (e) { notice(e.message); } finally { b.disabled = false; }
+  });
+  return b;
+}
+
+function bind(id, callback) {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('click', async () => {
+    el.disabled = true;
+    try { await callback(); } catch (e) { notice(e.message); } finally { el.disabled = false; }
+  });
+}
+
+function link(text, url) {
+  const e = node('a', text);
+  try {
+    const u = new URL(url);
+    if (['https:', 'http:'].includes(u.protocol)) { e.href = u.href; e.target = '_blank'; e.rel = 'noopener noreferrer'; }
+  } catch {}
+  return e;
+}
+
+function table(rows) {
+  const wrap = node('div', undefined, 'table-wrap'), t = node('table');
+  for (const [k, v] of rows) {
+    const tr = node('tr');
+    tr.append(node('th', k), node('td', v === null || v === undefined ? '—' : String(v)));
+    t.append(tr);
+  }
+  wrap.append(t); return wrap;
+}
+
+function details(title, child, open) {
+  const e = node('details', undefined, 'panel');
+  if (open) e.setAttribute('open', '');
+  e.append(node('summary', title), child);
+  return e;
+}
+
+/* ── Templates ── */
+const templates = {
+  dashboard: '<div id="overview"></div><h2>Platform Overview</h2><div id="dashboard-platforms" class="platform-grid"></div><h2>Recent Findings</h2><div id="latest-events"></div>',
+
+  profile: '<div class="section-heading"><p>Set up your monitoring profile — add keywords, enable platforms, and save.</p><button id="save-profile" class="primary">💾 Save Profile</button></div><label class="name-field">Profile name<input id="profile-name" maxlength="120" placeholder="e.g. Kashmir Intel Monitor"></label><div id="dimensions" class="dimension-grid"></div><h2>Platforms to Monitor</h2><div id="platform-select" class="platform-grid"></div><div class="panel"><h2>Platform Specific Queries</h2><p>Override global dimensions for specific platforms. These take priority.</p><div id="platform-queries"></div></div><div class="panel"><h2>Saved Accounts & Feeds</h2><p>Add Instagram accounts or RSS news feeds to monitor directly.</p><div id="saved-sources"></div></div>',
+
+  run: '<div class="panel"><h2>🚀 Start New Audit</h2><p id="run-summary"></p><p>All enabled platforms will be scanned simultaneously. Results appear in real-time.</p><div class="limit-grid"><label>Time window<select id="window-hours"><option value="1">Last 1 hour</option><option value="6">Last 6 hours</option><option value="12">Last 12 hours</option><option value="24" selected>Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="custom">Custom range</option></select></label><label>Timezone<input id="window-zone" value="Asia/Kolkata" readonly></label></div><div id="custom-window" class="limit-grid" hidden><label>From<input id="window-start" type="datetime-local"></label><label>To<input id="window-end" type="datetime-local"></label></div><div class="actions"><button id="preview-plan">👁️ Preview Queries</button><button id="run-audit" class="primary">▶️ Run Audit Now</button></div><div id="query-plan"></div></div><div id="live-report"></div>',
+
+  history: '<div class="history-layout"><div id="run-list" class="panel"></div><div id="history-report"></div></div>',
+
+  platforms: '<div id="platform-cards" class="platform-grid"></div><div id="platform-report"></div>',
+
+  records: '<div class="search-guide-box"><div class="guide-header"><strong>🔍 Search Tips</strong></div><div class="guide-chips"><span class="guide-chip" id="chip-boolean">Boolean: <code>("Ooty" OR "ऊटी") AND ("Indian Army")</code></span><span class="guide-chip" id="chip-or">Multi-term: <code>flood or earthquake or landslide</code></span><span class="guide-chip" id="chip-phrase">Exact phrase: <code>"rescue operation"</code></span></div></div><form id="search-form" class="panel"><div id="search-fields" class="limit-grid"></div><p>Search across all past audit results. Supports Boolean queries and exact phrases.</p><button type="submit" class="primary">🔍 Search</button></form><div id="record-results"></div>',
+
+  events: '<p>Key findings grouped by similarity. Review each for verification.</p><div id="event-results"></div>',
+
+  sources: '<p>Accounts and feeds that returned records in past audits.</p><div id="source-results"></div>',
+
+  alerts: '<p>High-relevance matches requiring your attention.</p><div id="alert-results"></div>',
+
+  settings: '<div class="panel" id="settings-policies-panel"><h2>⚙️ Collection Settings</h2><p>Adjust how many items to fetch, timeout budgets, and page counts per platform.</p><div id="settings-policies"></div><div class="actions"><button id="save-settings-policies" class="primary">💾 Save Settings</button></div></div><div class="panel"><h2>📸 Instagram Connection</h2><p>Import your Instaloader session file to enable Instagram monitoring.</p><div class="limit-grid"><label>Username<input id="ig-username" autocomplete="off" placeholder="your_username"></label><label>Session file<input id="ig-session" type="file"></label></div><div class="actions"><button id="ig-configure">Import Session</button><button id="ig-test">Test Connection</button></div><p id="ig-status"></p></div><div class="panel"><h2>🔎 Find Instagram Profiles</h2><p>Search public profiles to add them for monitoring.</p><div class="limit-grid"><label>Search<input id="ig-search" placeholder="e.g. kashmir news"></label><label>Min followers<input id="ig-min" type="number" min="0"></label><label>Max followers<input id="ig-max" type="number" min="0"></label></div><button id="ig-find">Search</button><div id="ig-results"></div></div><div class="panel"><h2>⏰ Scheduled Audits</h2><p>Automatically run audits at regular intervals.</p><label class="check"><input id="schedule-enabled" type="checkbox">Enable auto-schedule</label><label>Run every (minutes)<input id="schedule-minutes" type="number" min="5" max="10080" value="60"></label><button id="save-schedule">Save Schedule</button><p id="schedule-next"></p></div>'
+};
+
+/* ── Build navigation & views ── */
+for (const [key, title] of Object.entries(views)) {
+  const b = action(title, () => navigate(key), 'nav');
+  b.dataset.view = key;
+  $('navigation').append(b);
+  const section = node('section', undefined, 'view');
+  section.id = 'view-' + key;
+  section.hidden = key !== 'dashboard';
+  section.innerHTML = templates[key];
+  $('views').append(section);
+}
+
+async function navigate(view) {
+  state.view = view;
+  for (const s of document.querySelectorAll('.view')) s.hidden = s.id !== 'view-' + view;
+  for (const b of document.querySelectorAll('.nav')) b.classList.toggle('active', b.dataset.view === view);
+  $('view-title').textContent = views[view];
+  if (view === 'history') await history();
+  if (view === 'records') await search();
+  if (view === 'events') renderEvents($('event-results'), await api('/api/incidents'));
+  if (view === 'sources') await sources();
+  if (view === 'alerts') await alerts();
+  if (view === 'settings') { await instagramStatus(); renderSettingsPolicies(); }
+  if (view === 'run') runSummary();
+}
+
+/* ── Profile Management ── */
+function renderDimension(category) {
+  const d = state.profile.dimensions[category],
+        card = node('article', undefined, 'dimension'),
+        head = node('header'),
+        label = node('label', names[category], 'check'),
+        enabled = document.createElement('input');
+  enabled.type = 'checkbox';
+  enabled.checked = d.enabled;
+  enabled.addEventListener('change', () => { d.enabled = enabled.checked; notice('Changes not saved yet — click Save Profile.'); });
+  label.prepend(enabled);
+  head.append(label);
+  card.append(head);
+
+  const filter = document.createElement('input');
+  filter.type = 'search';
+  filter.placeholder = 'Filter ' + names[category].toLowerCase() + '…';
+  card.append(filter);
+
+  const list = node('div', undefined, 'value-list'), count = node('p', '', 'muted');
+
+  function draw() {
+    list.replaceChildren();
+    for (const value of state.values[category].filter(v => v.value.toLowerCase().includes(filter.value.toLowerCase()))) {
+      const row = node('div', undefined, 'value-row'),
+            l = node('label', value.value, 'check'),
+            check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = d.values.includes(value.value);
+      check.addEventListener('change', () => {
+        d.values = check.checked ? [...new Set([...d.values, value.value])] : d.values.filter(v => v !== value.value);
+        count.textContent = `${d.values.length} selected`;
+      });
+      l.prepend(check);
+      row.append(l, action('Remove', async () => {
+        await api(`/api/values/${category}/${value.id}`, undefined, 'DELETE');
+        d.values = d.values.filter(v => v !== value.value);
+        state.values[category] = await api('/api/values/' + category);
+        draw();
+      }, 'small'));
+      list.append(row);
+    }
+    if (!list.children.length) list.append(node('p', 'No values yet. Add one below.', 'muted'));
+    count.textContent = `${d.values.length} selected`;
+  }
+  filter.addEventListener('input', draw);
+  draw();
+
+  const add = document.createElement('input');
+  add.placeholder = 'Add new ' + names[category].toLowerCase() + '…';
+  add.maxLength = 200;
+  card.append(list, count, add, action('+ Add', async () => {
+    await api('/api/values/' + category, { value: add.value });
+    state.values[category] = await api('/api/values/' + category);
+    add.value = '';
+    draw();
+    notice('Value added! Select it and save your profile to use it.');
+  }));
+  return card;
+}
+
+function renderProfile() {
+  const p = state.profile;
+  $('profile-name').value = p.name;
+  $('dimensions').replaceChildren(...Object.keys(p.dimensions).map(renderDimension));
+  $('platform-select').replaceChildren();
+  for (const [platform, enabled] of Object.entries(p.platforms)) {
+    const c = node('article', undefined, 'platform'),
+          l = node('label', names[platform], 'check'),
+          check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = enabled;
+    check.disabled = ['x', 'reddit'].includes(platform);
+    check.addEventListener('change', () => { p.platforms[platform] = check.checked; runSummary(); });
+    l.prepend(check);
+    const desc = check.disabled ? 'Coming soon' : platform === 'instagram' ? 'Requires session in Settings' : 'Ready to use';
+    c.append(l, node('p', desc));
+    $('platform-select').append(c);
+  }
+  renderSaved();
+  renderPlatformQueries();
+  const w = p.time_window;
+  $('window-hours').value = w.hours === null ? 'custom' : w.hours;
+  $('window-zone').value = w.timezone || 'Asia/Kolkata';
+  $('custom-window').hidden = w.hours !== null;
+  if (w.start_time) $('window-start').value = localInput(w.start_time);
+  if (w.end_time) $('window-end').value = localInput(w.end_time);
+  runSummary();
+}
+
+function localInput(v) {
+  const d = new Date(v);
+  return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function renderPlatformQueries() {
+  $('platform-queries').replaceChildren();
+  for (const platform of ['youtube', 'instagram', 'news', 'meta', 'web']) {
+    const box = node('div', undefined, 'panel');
+    box.append(node('h3', names[platform] + ' Queries'));
+    for (const value of state.profile.platform_queries?.[platform] || []) {
+      const row = node('div', undefined, 'actions');
+      row.append(node('span', value), action('✕', () => {
+        state.profile.platform_queries[platform] = state.profile.platform_queries[platform].filter(v => v !== value);
+        renderPlatformQueries();
+      }, 'small'));
+      box.append(row);
+    }
+    const input = document.createElement('input');
+    input.placeholder = 'e.g. "exact phrase" or keyword';
+    box.append(input, action('+ Add', () => {
+      const value = input.value.trim();
+      if (!value) throw new Error('Enter a query');
+      if (!state.profile.platform_queries) state.profile.platform_queries = {};
+      state.profile.platform_queries[platform] = [...new Set([...(state.profile.platform_queries[platform] || []), value])];
+      renderPlatformQueries();
+      notice('Save profile to keep this change.');
+    }));
+    $('platform-queries').append(box);
+  }
+}
+
+function renderSaved() {
+  $('saved-sources').replaceChildren();
+  for (const platform of ['instagram', 'news']) {
+    const box = node('div', undefined, 'panel');
+    box.append(node('h3', names[platform] + ' Sources'));
+    for (const value of state.profile.saved_sources[platform] || []) {
+      const row = node('div', undefined, 'actions');
+      row.append(node('span', value), action('✕', () => {
+        state.profile.saved_sources[platform] = state.profile.saved_sources[platform].filter(v => v !== value);
+        renderSaved();
+      }, 'small'));
+      box.append(row);
+    }
+    const input = document.createElement('input');
+    input.placeholder = platform === 'instagram' ? 'username (without @)' : 'https://example.com/rss';
+    box.append(input, action('+ Add', () => {
+      const value = input.value.trim();
+      if (!value) throw new Error('Enter a source');
+      state.profile.saved_sources[platform] = [...new Set([...(state.profile.saved_sources[platform] || []), value])];
+      renderSaved();
+      notice('Save profile to keep this change.');
+    }));
+    $('saved-sources').append(box);
+  }
+}
+
+function renderSettingsPolicies() {
+  const target = $('settings-policies');
+  if (!target) return;
+  target.replaceChildren();
+  for (const [platform, p] of Object.entries(state.profile.policies)) {
+    if (['x', 'reddit'].includes(platform)) continue;
+    const grid = node('div', undefined, 'limit-grid');
+    for (const [key, label, min, max] of [
+      ['items_per_query', 'Items per search', 1, 100],
+      ['timeout_seconds', 'Timeout (seconds)', 5, 300],
+      ['pages_per_query', 'Pages to fetch', 0, 20],
+      ['cache_ttl_seconds', 'Cache duration (seconds)', 0, 86400]
+    ]) {
+      const l = node('label', label), input = document.createElement('input');
+      input.type = 'number'; input.min = min; input.max = max; input.value = p[key];
+      input.addEventListener('change', () => { p[key] = Number(input.value); });
+      l.append(input); grid.append(l);
+    }
+    target.append(details(names[platform], grid));
+  }
+}
+
+function collectProfile() {
+  const p = structuredClone(state.profile);
+  p.name = $('profile-name').value;
+  const h = $('window-hours').value;
+  p.time_window = { hours: h === 'custom' ? null : Number(h), timezone: 'Asia/Kolkata' };
+  if (h === 'custom') {
+    const start = new Date($('window-start').value), end = new Date($('window-end').value);
+    if (isNaN(start) || isNaN(end)) throw new Error('Choose both start and end dates');
+    p.time_window.start_time = start.toISOString();
+    p.time_window.end_time = end.toISOString();
+  }
+  p.platform_queries = state.profile.platform_queries || {};
+  return p;
+}
+
+async function saveProfile() {
+  const saved = await api('/api/profile', collectProfile());
+  state.profile.time_window = saved.time_window;
+  state.profile.name = saved.name;
+  runSummary();
+  notice('✅ Profile saved successfully!');
+}
+
+function runSummary() {
+  if (state.profile) {
+    const platforms = Object.entries(state.profile.platforms).filter(([, v]) => v).map(([p]) => names[p]).join(', ');
+    $('run-summary').textContent = `${state.profile.name} · ${platforms || 'No platforms selected'}`;
+  }
+}
+
+bind('save-profile', saveProfile);
+bind('save-settings-policies', async () => { await saveProfile(); renderSettingsPolicies(); });
+$('window-hours').addEventListener('change', () => $('custom-window').hidden = $('window-hours').value !== 'custom');
+
+bind('preview-plan', async () => {
+  await saveProfile();
+  const plan = await api('/api/plan');
+  $('query-plan').replaceChildren();
+  for (const [p, queries] of Object.entries(plan)) {
+    if (!queries.length) continue;
+    const list = node('ol');
+    queries.forEach(q => list.append(node('li', q.text)));
+    $('query-plan').append(details(`${names[p]} — ${queries.length} queries`, list));
+  }
+});
+
+bind('run-audit', async () => {
+  await saveProfile();
+  const r = await api('/api/run', {});
+  state.selectedRun = r.run_id;
+  notice('🚀 Audit started! All platforms running in parallel. Results will appear below.');
+  await poll();
+});
+
+/* ── Dashboard & Reports ── */
+function summaryCard(report) {
+  const box = node('div', undefined, 'panel');
+  if (!report?.platforms) {
+    box.append(empty('No audits yet. Go to Setup Profile to get started.'));
+    return box;
+  }
+  box.append(node('h2', `Audit — ${formatDate(report.started_at)}`), pill(report.status));
+  const w = report.time_window;
+  if (w) box.append(node('p', `${formatDate(w.start_time)} → ${formatDate(w.end_time)} (IST)`));
+  box.append(table([
+    ['Duration', report.duration_seconds == null ? 'Still running…' : report.duration_seconds + ' seconds'],
+    ['Items scanned', report.metrics?.items_checked],
+    ['Relevant items', report.metrics?.relevant_items],
+    ['Sources found', report.metrics?.sources_discovered],
+    ['Findings', report.event_count]
+  ]));
+
+  const exportRow = node('div', undefined, 'actions');
+  exportRow.append(
+    action('📄 Download CSV', () => download(report.id, 'normalized', 'csv')),
+    action('🖨️ Print / Save PDF', () => { window.print(); })
+  );
+  box.append(exportRow);
+  return box;
+}
+
+function platformCards(target, report) {
+  target.replaceChildren();
+  for (const platform of ['youtube', 'instagram', 'news', 'x', 'reddit', 'meta', 'web']) {
+    const a = report?.platforms?.[platform], card = node('article', undefined, 'platform');
+    const status = a?.status || 'disabled';
+    const statusLabel = { complete: '✅', failed: '❌', partial: '⚠️', running: '⏳', disabled: '—' }[status] || '';
+    card.append(
+      node('h3', `${statusLabel} ${names[platform]}`),
+      node('p', `${a?.metrics?.items_checked ?? 0} items · ${a?.metrics?.relevant_items ?? 0} relevant`),
+      action('View details', async () => {
+        await navigate('platforms');
+        state.selectedRun = report?.id;
+        if (report) await platformReport(report.id, platform);
+        else $('platform-report').replaceChildren(empty('No data for this platform.'));
+      })
+    );
+    target.append(card);
+  }
+}
+
+async function platformReport(runId, platform) {
+  const a = await api(`/api/audits/${runId}/platforms/${platform}`),
+        box = node('article', undefined, 'panel');
+
+  const header = node('div', undefined, 'dashboard-header');
+  header.style.cssText = 'display: flex; align-items: center; gap: 16px; margin-bottom: 8px;';
+  header.append(
+    node('h2', names[platform] + ' Dashboard'),
+    pill(a.status)
+  );
+  box.append(header);
+  box.append(node('p', `${formatDate(a.time_window?.start_time)} → ${formatDate(a.time_window?.end_time)} (IST)`, 'muted'));
+
+  const statGrid = node('div', undefined, 'platform-grid');
+  statGrid.append(
+    statCard('Items Scanned', a.metrics.items_checked, '📊'),
+    statCard('Relevant Items', a.metrics.relevant_items, '🎯'),
+    statCard('Sources Found', a.metrics.sources_discovered, '🔍'),
+    statCard('Duration', a.duration_seconds + 's', '⏱️')
+  );
+  box.append(statGrid);
+
+  if (a.errors?.length) {
+    const issueBox = node('div', undefined, 'notice-banner');
+    issueBox.style.cssText = 'background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;color:#991b1b;margin:12px 0;padding:12px 16px;border-radius:8px;';
+    issueBox.textContent = '⚠️ ' + a.errors.map(e => errorMessages[e] || e).join(' · ');
+    box.append(issueBox);
+  }
+
+  if (platform === 'web' && a.records?.length > 0) {
+    const snippets = a.records.filter(r => r.event?.metadata?.collection_scope === 'search_snippet_only');
+    if (snippets.length > 0) {
+      const banner = node('div');
+      banner.style.cssText = 'background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;color:#92400e;margin:12px 0;padding:12px 16px;border-radius:8px;font-size:14px;';
+      banner.textContent = `ℹ️ ${snippets.length} of ${a.records.length} web results are short search snippets. Increase "Pages to fetch" in Settings to get full article text.`;
+      box.append(banner);
+    }
+  }
+
+  const exportRow = node('div', undefined, 'actions');
+  exportRow.append(
+    action('📄 Download CSV', () => download(runId, 'normalized', 'csv')),
+    action('🖨️ Print / Save PDF', () => { window.print(); })
+  );
+  box.append(exportRow);
+
+  box.append(node('h3', 'Top Relevant Records'));
+  const recordsGrid = node('div', undefined, 'dimension-grid');
+  renderRecords(recordsGrid, a.records, true);
+  box.append(recordsGrid);
+
+  $('platform-report').replaceChildren(box);
+}
+
+function statCard(label, value, icon) {
+  const card = node('div', undefined, 'panel stat-card');
+  card.style.cssText = 'text-align: center; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #e2e8f0; background: #fafafa;';
+  const val = node('div', value, 'stat-value');
+  val.style.cssText = 'font-size: 28px; font-weight: 800; margin: 8px 0; color: #0f172a;';
+  card.append(node('div', icon, 'stat-icon'), val, node('div', label, 'stat-label'));
+  return card;
+}
+
+/* ── Record Cards (simplified, no raw JSON) ── */
+function recordCard(item) {
+  const e = item.event, a = item.analysis, card = node('article', undefined, 'result');
+  const title = node('h3');
+  title.append(link(e.title || e.metadata?.title || e.content?.slice(0, 120) || e.item_id, e.url));
+
+  // Platform & account row
+  const topRow = node('div', undefined, 'result-top');
+  const platformIcon = { youtube: '▶️', instagram: '📷', news: '📰', web: '🌐', meta: '👤' }[e.platform] || '📌';
+  topRow.textContent = `${platformIcon} ${names[e.platform] || e.platform} · ${e.account || e.source_id}`;
+  card.append(topRow, title);
+
+  // Status pills
+  card.append(pill(a.time_classification, a.time_classification));
+  if (a.relevant) card.append(node('span', '🎯 Relevant', 'pill complete'));
+
+  // Snippet vs full-text badge for web
+  if (e.platform === 'web') {
+    const scope = e.metadata?.collection_scope;
+    if (scope === 'search_snippet_only') card.append(node('span', '🔍 Snippet only', 'pill snippet'));
+    else if (scope === 'public_page_text') card.append(node('span', '📄 Full article', 'pill fulltext'));
+  }
+
+  // Transcript badge
+  if (e.metadata?.transcript_text) {
+    card.append(node('span', '🎙️ Has spoken transcript', 'pill transcript'));
+  }
+
+  // Content preview
+  const content = (e.content || '').slice(0, 600);
+  if (content) card.append(node('p', content));
+
+  // Transcript preview
+  if (e.metadata?.transcript_text) {
+    const tBox = node('div', undefined, 'transcript-box');
+    const preview = e.metadata.transcript_text.length > 250 ? e.metadata.transcript_text.slice(0, 250) + '…' : e.metadata.transcript_text;
+    tBox.textContent = '🎙️ Transcript: ' + preview;
+    card.append(tBox);
+  }
+
+  // Date & relevance summary
+  card.append(node('p', `Published: ${formatDate(e.published_at)} · Collected: ${formatDate(e.collected_at)}`, 'muted'));
+
+  // Matched terms (simplified)
+  const matchedParts = Object.entries(a.matches || {}).filter(([, v]) => Array.isArray(v) && v.length > 0).map(([k, v]) => `${names[k]}: ${v.join(', ')}`);
+  if (matchedParts.length) {
+    card.append(node('p', '🎯 Matched: ' + matchedParts.join(' · '), 'muted'));
+  }
+
+  // Only "Open original" link — no raw JSON or analysis details
+  card.append(action('🔗 Open original', () => { window.open(e.url, '_blank'); }));
+
+  return card;
+}
+
+function renderRecords(target, items, append = false) {
+  if (!append) target.replaceChildren();
+  if (!items || !items.length) target.append(empty('No records found.'));
+  else items.forEach(i => target.append(recordCard(i)));
+}
+
+function renderEvents(target, events) {
+  target.replaceChildren();
+  if (!events?.length) { target.append(empty('No key findings yet. Run an audit first.')); return; }
+  for (const e of events) {
+    const c = node('article', undefined, 'result');
+    c.append(
+      node('h3', e.title),
+      pill(e.evidence_level),
+      node('p', e.summary),
+      node('p', `${e.source_count} sources · ${e.platforms.map(p => names[p]).join(', ')} · First seen: ${formatDate(e.first_seen_at)}`, 'muted'),
+      action('View supporting records', async () => {
+        const items = await api('/api/records?' + new URLSearchParams({ run_id: e.run_id }));
+        $('dialog-title').textContent = 'Supporting Records';
+        renderRecords($('dialog-body'), items.filter(i => e.record_ids.includes(i.id)));
+        $('detail-dialog').showModal();
+      })
+    );
+    target.append(c);
+  }
+}
+
+/* ── History ── */
+async function history() {
+  const runs = await api('/api/audits');
+  $('run-list').replaceChildren();
+  if (!runs.length) $('run-list').append(empty('No past audits.'));
+  for (const run of runs) {
+    const statusIcon = { complete: '✅', failed: '❌', partial: '⚠️' }[run.status] || '📋';
+    $('run-list').append(action(`${statusIcon} ${formatDate(run.started_at)}`, async () => {
+      state.selectedRun = run.id;
+      await historyReport(run.id);
+    }));
+  }
+  if (state.selectedRun) await historyReport(state.selectedRun);
+}
+
+async function historyReport(id) {
+  const r = await api('/api/audits/' + id), box = summaryCard(r);
+  if (!r.platforms) return;
+  for (const [p, a] of Object.entries(r.platforms)) {
+    const statusIcon = { complete: '✅', failed: '❌', partial: '⚠️', disabled: '—' }[a.status] || '';
+    box.append(action(`${statusIcon} ${names[p]} — ${a.metrics?.relevant_items ?? 0} relevant`, async () => {
+      await navigate('platforms');
+      await platformReport(id, p);
+    }));
+  }
+  $('history-report').replaceChildren(box);
+}
+
+/* ── Search ── */
+for (const [key, label, choices] of [
+  ['q', 'Search text'],
+  ['platform', 'Platform', ['', 'youtube', 'instagram', 'news', 'meta', 'web']],
+  ['source', 'Source / account'],
+  ['classification', 'Time period', ['CURRENT', 'STALE', 'UNKNOWN_TIME', 'AFTER_WINDOW', '']],
+  ['entities', 'Entity / phrase'],
+  ['keywords', 'Keyword'],
+  ['hashtags', 'Hashtag'],
+  ['geography', 'Location'],
+  ['incident_types', 'Incident type'],
+  ['start_time', 'From date'],
+  ['end_time', 'To date']
+]) {
+  const l = node('label', label), input = document.createElement(choices ? 'select' : 'input');
+  input.name = key;
+  if (key === 'q') { input.id = 'search-q'; input.placeholder = 'e.g. "rescue operation" or flood or earthquake'; }
+  else if (key === 'entities') { input.placeholder = '"United Nations" or exact phrase'; }
+  if (choices) {
+    for (const v of choices) {
+      const displayText = { '': 'All', 'CURRENT': 'Current (within window)', 'STALE': 'Old / stale', 'UNKNOWN_TIME': 'Unknown date', 'AFTER_WINDOW': 'After window' }[v] || (names[v] || v);
+      const o = node('option', displayText);
+      o.value = v;
+      input.append(o);
+    }
+  } else {
+    input.type = key.endsWith('_time') ? 'datetime-local' : 'search';
+  }
+  l.append(input);
+  $('search-fields').append(l);
+}
+
+// Bind search chips
+setTimeout(() => {
+  const q = $('search-q');
+  if (q) {
+    const c1 = $('chip-boolean'); if (c1) c1.onclick = () => { q.value = '("Ooty" OR "ऊटी") AND ("Indian Army") -filter:retweets'; q.focus(); };
+    const c2 = $('chip-or'); if (c2) c2.onclick = () => { q.value = 'flood or earthquake or landslide'; q.focus(); };
+    const c3 = $('chip-phrase'); if (c3) c3.onclick = () => { q.value = '"rescue operation"'; q.focus(); };
+  }
+}, 50);
+
+async function search() {
+  const p = new URLSearchParams();
+  for (const [k, v] of new FormData($('search-form'))) {
+    if (v) p.set(k, k.endsWith('_time') ? new Date(v).toISOString() : v);
+  }
+  renderRecords($('record-results'), await api('/api/search?' + p));
+}
+
+$('search-form').addEventListener('submit', e => { e.preventDefault(); search().catch(e => notice(e.message)); });
+
+/* ── Sources ── */
+async function sourceDetail(platform, id) {
+  const hist = await api('/api/source-history?' + new URLSearchParams({ platform, source_id: id })),
+        body = $('dialog-body');
+  body.replaceChildren();
+  for (const s of hist) {
+    const card = node('article', undefined, 'panel');
+    card.append(
+      node('h3', 'Audit — ' + formatDate(s.last_audited)),
+      pill(s.status),
+      table([['Checked', s.items_checked], ['Relevant', s.relevant_items], ['New', s.new_items]])
+    );
+    body.append(card);
+  }
+  $('dialog-title').textContent = names[platform] + ' · ' + id;
+  if (!$('detail-dialog').open) $('detail-dialog').showModal();
+}
+
+async function sources() {
+  const items = await api('/api/sources');
+  $('source-results').replaceChildren();
+  if (!items.length) $('source-results').append(empty('No sources found yet. Run an audit first.'));
+  for (const s of items) {
+    const card = node('article', undefined, 'panel');
+    card.append(
+      node('h3', `${names[s.platform]} · ${s.source_id}`),
+      table([['Last seen', formatDate(s.last_seen_at)], ['Failures', s.failure_count]]),
+      action('View history', () => sourceDetail(s.platform, s.source_id))
+    );
+    $('source-results').append(card);
+  }
+}
+
+async function alerts() {
+  const items = await api('/api/alerts');
+  $('alert-results').replaceChildren();
+  if (!items.length) $('alert-results').append(empty('No alerts right now.'));
+  for (const a of items) {
+    const card = node('article', undefined, 'panel');
+    card.append(
+      node('h3', '🚨 Relevance Alert'),
+      pill(a.evidence_level),
+      node('p', formatDate(a.created_at)),
+      action('Review', async () => {
+        const items = await api('/api/records?run_id=' + a.run_id);
+        $('dialog-title').textContent = 'Alert Record';
+        renderRecords($('dialog-body'), items.filter(i => i.id === a.record_id));
+        $('detail-dialog').showModal();
+      })
+    );
+    $('alert-results').append(card);
+  }
+}
+
+/* ── Export (CSV + Print-to-PDF) ── */
+async function download(runId, kind, format) {
+  const r = await fetch('/api/export?' + new URLSearchParams({ run_id: runId, kind, format }), {
+    headers: { 'X-Watchtower-Token': document.querySelector('meta[name=watchtower-token]').content }
+  });
+  if (!r.ok) throw new Error('Export failed');
+  const u = URL.createObjectURL(await r.blob()), a = document.createElement('a');
+  a.href = u; a.download = `watchtower-report-${runId.slice(0, 8)}.${format}`; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 1000);
+}
+
+/* ── Instagram Settings ── */
+async function instagramStatus() {
+  const s = await api('/api/instagram');
+  $('ig-username').value = s.username;
+  $('ig-status').textContent = s.error ? (errorMessages[s.error] || s.error) : (s.status || 'Not connected');
+}
+
+bind('ig-configure', async () => {
+  const file = $('ig-session').files[0];
+  if (!file) throw new Error('Select a session file first.');
+  if (file.size > 1024 * 1024) throw new Error('File too large (max 1 MB).');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 32768) binary += String.fromCharCode(...bytes.subarray(i, i + 32768));
+  await api('/api/instagram/configure', { username: $('ig-username').value, session_data: btoa(binary) });
+  $('ig-session').value = '';
+  await instagramStatus();
+  notice('✅ Instagram session imported! Test the connection to verify.');
+});
+
+bind('ig-test', async () => {
+  $('ig-status').textContent = 'Testing…';
+  const r = await api('/api/instagram/test', {});
+  $('ig-status').textContent = r.error ? (errorMessages[r.error] || r.error) : '✅ ' + r.status;
+});
+
+bind('ig-find', async () => {
+  const r = await api('/api/instagram/search', {
+    search: $('ig-search').value,
+    minimum: $('ig-min').value === '' ? null : Number($('ig-min').value),
+    maximum: $('ig-max').value === '' ? null : Number($('ig-max').value)
+  });
+  $('ig-results').replaceChildren();
+  if (r.error) { $('ig-results').append(empty(errorMessages[r.error] || r.error)); return; }
+  if (!r.profiles?.length) { $('ig-results').append(empty('No public profiles found.')); return; }
+  for (const p of r.profiles) {
+    const c = node('article', undefined, 'result');
+    c.append(
+      link('@' + p.username + ' · ' + p.display_name, p.url),
+      node('p', p.biography),
+      table([['Followers', p.followers?.toLocaleString('en-IN')], ['Posts', p.post_count]]),
+      action('➕ Monitor this account', async () => {
+        state.profile.saved_sources.instagram = [...new Set([...(state.profile.saved_sources.instagram || []), p.username])];
+        await saveProfile();
+        renderSaved();
+        notice(`✅ @${p.username} added to monitoring!`);
+      })
+    );
+    $('ig-results').append(c);
+  }
+});
+
+bind('save-schedule', async () => {
+  const s = await api('/api/schedule', {
+    enabled: $('schedule-enabled').checked,
+    interval_minutes: Number($('schedule-minutes').value)
+  });
+  $('schedule-next').textContent = s.next_run_at ? 'Next run: ' + formatDate(new Date(s.next_run_at * 1000).toISOString()) : 'Schedule disabled';
+  notice('✅ Schedule saved.');
+});
+
+$('close-dialog').addEventListener('click', () => $('detail-dialog').close());
+
+/* ── Polling ── */
+async function poll() {
+  if (state.polling) return;
+  state.polling = true;
+  try {
+    state.status = await api('/api/status');
+    $('run-state').textContent = state.status.running ? '⏳ Audit running' : '✅ Ready';
+    $('run-state').className = 'pill ' + (state.status.running ? 'running' : 'complete');
+    $('run-audit').disabled = state.status.running;
+    const runs = await api('/api/audits');
+    if (runs.length) {
+      state.latest = await api('/api/audits/' + runs[0].id);
+      $('overview').replaceChildren(summaryCard(state.latest));
+      platformCards($('dashboard-platforms'), state.latest);
+      platformCards($('platform-cards'), state.latest);
+      renderEvents($('latest-events'), await api('/api/incidents?run_id=' + runs[0].id));
+      if (state.view === 'run') {
+        $('live-report').replaceChildren(summaryCard(state.latest));
+        if (state.latest.platforms) {
+          for (const [p, a] of Object.entries(state.latest.platforms)) {
+            const icon = { complete: '✅', failed: '❌', partial: '⚠️', running: '⏳' }[a.status] || '';
+            $('live-report').append(node('p', `${icon} ${names[p]}: ${a.metrics.items_checked} items, ${a.metrics.relevant_items} relevant`));
+          }
+        }
+      }
+    } else {
+      $('overview').replaceChildren(empty('Welcome! Go to Setup Profile to create your first monitoring profile.'));
+      platformCards($('dashboard-platforms'), null);
+      platformCards($('platform-cards'), null);
+    }
+  } catch (e) {
+    notice('Could not refresh: ' + e.message);
+  } finally {
+    state.polling = false;
+  }
+}
+
+async function init() {
+  state.profile = await api('/api/profile');
+  state.capabilities = await api('/api/platforms');
+  for (const category of Object.keys(state.profile.dimensions))
+    state.values[category] = await api('/api/values/' + category);
+  renderProfile();
+  await poll();
+  if (state.status) {
+    $('schedule-enabled').checked = state.status.schedule.enabled;
+    $('schedule-minutes').value = state.status.schedule.interval_minutes;
+  }
+  setInterval(poll, 2500);
+}
+
+init().catch(e => notice('Could not load: ' + e.message));

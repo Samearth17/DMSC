@@ -170,8 +170,16 @@ class ApplicationStorage:
         result=[]
         for row in self.db.execute(sql+' ORDER BY sr.collected_at DESC',args):
             e,a=json.loads(row['normalized']),json.loads(row['result'])
-            if filters.get('q','').casefold() not in (e.get('content','')+' '+(e.get('title') or '')).casefold():
-                continue
+            meta = e.get('metadata') if isinstance(e.get('metadata'), dict) else {}
+            combined = (e.get('content','')+' '+(e.get('title') or '')+' '+(meta.get('transcript_text') or '')).casefold()
+            if filters.get('q'):
+                from app.intelligence.boolean import is_boolean_query, eval_boolean_match
+                q_val = filters['q'].strip()
+                if is_boolean_query(q_val) or ' or ' in q_val.lower() or '|' in q_val:
+                    if not eval_boolean_match(q_val, combined):
+                        continue
+                elif q_val.casefold() not in combined:
+                    continue
             if filters.get('source') and filters['source'].casefold() not in (e['source_id']+' '+(e.get('account') or '')).casefold():
                 continue
             if filters.get('classification') and a.get('time_classification') != filters['classification']:
@@ -180,8 +188,24 @@ class ApplicationStorage:
                 continue
             if filters.get('evidence_level') and a.get('evidence_level') != filters['evidence_level']:
                 continue
-            if any(filters.get(k) and not any(filters[k].casefold() in str(v).casefold() for v in a.get('matches',{}).get(k,[]))
-                   for k in DIMENSIONS):
+            skip = False
+            for k in DIMENSIONS:
+                val = filters.get(k)
+                if not val:
+                    continue
+                clean_val = val.strip()
+                matched_dim = [str(v).casefold() for v in a.get('matches',{}).get(k,[])]
+                from app.intelligence.boolean import is_boolean_query, eval_boolean_match
+                if is_boolean_query(clean_val) or ' or ' in clean_val.lower() or '|' in clean_val or ',' in clean_val:
+                    if not (eval_boolean_match(clean_val, " ".join(matched_dim)) or eval_boolean_match(clean_val, combined)):
+                        skip = True
+                        break
+                else:
+                    phrase = clean_val.strip('"\'').casefold()
+                    if not (any(phrase in m for m in matched_dim) or phrase in combined):
+                        skip = True
+                        break
+            if skip:
                 continue
             result.append({'id':row['id'],'run_id':row['run_id'],'event':e,'analysis':a})
             if len(result)>=limit:

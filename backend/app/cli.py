@@ -12,6 +12,7 @@ from app.connectors.web.connector import WebConnector
 from app.connectors.meta.connector import MetaConnector
 from app.discovery.queries import plan
 from app.storage.repository import Repository
+from app.connectors.reddit.connector import RedditConnector
 
 
 def output(value):
@@ -19,8 +20,14 @@ def output(value):
 
 
 def registry():
-    return {"youtube": YouTubeConnector(), "instagram": InstagramConnector(),
-            "news": NewsConnector(), "web": WebConnector(), "meta": MetaConnector()}
+    return {
+        "youtube": YouTubeConnector(),
+        "instagram": InstagramConnector(),
+        "reddit": RedditConnector(),
+        "news": NewsConnector(),
+        "web": WebConnector(),
+        "meta": MetaConnector(),
+    }
 
 
 def safe_cell(value):

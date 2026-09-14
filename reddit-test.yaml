@@ -1,0 +1,46 @@
+name: Reddit Test
+
+dimensions:
+  geography:
+    enabled: false
+    values: []
+
+  entities:
+    enabled: false
+    values: []
+
+  keywords:
+    enabled: true
+    values:
+      - digital forensics
+      - cyber warfare
+
+  hashtags:
+    enabled: false
+    values: []
+
+  incident_types:
+    enabled: false
+    values: []
+
+platforms:
+  youtube: false
+  instagram: false
+  x: false
+  reddit: true
+  meta: false
+  news: false
+  web: false
+
+policies:
+  reddit:
+    query_limit: 2
+    items_per_query: 10
+    min_interval_seconds: 2
+    timeout_seconds: 45
+    retries: 1
+    backoff_seconds: 2
+    cache_ttl_seconds: 900
+    pages_per_query: 2
+
+time_window: {}

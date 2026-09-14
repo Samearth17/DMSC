@@ -23,7 +23,7 @@ class Policy:
     retries: int = 1
     backoff_seconds: float = 2.0
     cache_ttl_seconds: int = 900
-    pages_per_query: int = 2
+    pages_per_query: int = 5
 
 
 @dataclass
@@ -34,6 +34,7 @@ class Profile:
     policies: dict[str, Policy]
     time_window: TimeWindow = field(default_factory=TimeWindow)
     saved_sources: dict[str, list[str]] = field(default_factory=dict)
+    platform_queries: dict[str, list[str]] = field(default_factory=dict)
 
     def snapshot(self):
         return asdict(self)
@@ -45,7 +46,7 @@ class Profile:
     def parse(cls, data):
         if not isinstance(data, dict):
             raise ValueError("Profile must be a mapping")
-        unknown = set(data) - {"name", "dimensions", "platforms", "policies", "time_window", "saved_sources"}
+        unknown = set(data) - {"name", "dimensions", "platforms", "policies", "time_window", "saved_sources", "platform_queries"}
         if unknown:
             raise ValueError(f"Unknown profile fields: {sorted(unknown)}")
         name = data.get("name", "Local profile")
@@ -93,7 +94,8 @@ class Profile:
                 integer = k not in {"min_interval_seconds", "backoff_seconds"}
                 if type(v) not in ((int,) if integer else (int, float)) or not bounds[k][0] <= v <= bounds[k][1]:
                     raise ValueError(f"Invalid policy value: {key}.{k}")
-            policies[key] = Policy(**raw)
+            defaults = {"instagram": {"timeout_seconds": 60}, "web": {"pages_per_query": 5}}.get(key, {})
+            policies[key] = Policy(**{**defaults, **raw})
         saved = data.get('saved_sources', {})
         if not isinstance(saved, dict) or set(saved) - {'news', 'instagram'}:
             raise ValueError('Invalid saved sources')
@@ -111,8 +113,21 @@ class Profile:
                     u = urlsplit(value)
                     if u.scheme not in {'http','https'} or not u.hostname or u.username or u.password or u.port not in (None,80,443):
                         raise ValueError('Feed must be a public HTTP(S) URL without credentials')
+        pq = data.get('platform_queries', {})
+        if not isinstance(pq, dict) or set(pq) - set(PLATFORMS):
+            raise ValueError('Invalid platform_queries')
+        platform_queries = {}
+        for plat, qlist in pq.items():
+            if not isinstance(qlist, list) or len(qlist) > 50:
+                raise ValueError(f'platform_queries.{plat} must be a list of up to 50 terms')
+            clean = []
+            for q in qlist:
+                if not isinstance(q, str) or not q.strip() or len(q) > 500:
+                    raise ValueError('Each platform query must be a non-empty string up to 500 chars')
+                clean.append(q.strip())
+            platform_queries[plat] = clean
         return cls(name.strip(), dimensions, platforms, policies,
-                   TimeWindow.parse(data.get('time_window', {})), saved)
+                   TimeWindow.parse(data.get('time_window', {})), saved, platform_queries)
 
 
 def load_profile(path):

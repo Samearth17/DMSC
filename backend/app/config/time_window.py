@@ -16,7 +16,7 @@ class TimeWindow:
     hours: int | None = 24
     start_time: str | None = None
     end_time: str | None = None
-    timezone: str = 'UTC'
+    timezone: str = 'Asia/Kolkata'
 
     @classmethod
     def parse(cls, data):

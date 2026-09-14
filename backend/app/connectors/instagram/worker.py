@@ -5,15 +5,23 @@ from itertools import islice
 import json
 import os
 import sys
+import time
 
 
 def collect(data):
+    started = time.monotonic()
     import instaloader as il
     from instaloader import exceptions as ex
     class StopOn429(il.RateController):
         def handle_429(self, query_type):
             raise ex.TooManyRequestsException("rate_limited")
-    query, policy = data.get('query',{'dimension':'keywords','term':''}), data.get('policy',{'timeout_seconds':30,'items_per_query':10})
+    query, policy = data.get('query',{'dimension':'keywords','term':''}), data.get('policy',{'timeout_seconds':60,'items_per_query':10})
+    timeout_budget = float(policy.get("timeout_seconds", 60))
+    safety_buffer = min(5.0, timeout_budget * 0.2) if timeout_budget > 10 else 1.0
+
+    def time_budget_approaching():
+        return (time.monotonic() - started) >= (timeout_budget - safety_buffer)
+
     loader = il.Instaloader(download_pictures=False,download_videos=False,
         download_video_thumbnails=False,download_geotags=False,download_comments=False,
         save_metadata=False,compress_json=False,quiet=True,max_connection_attempts=1,
@@ -51,6 +59,8 @@ def collect(data):
             profiles=[]
             candidates=il.TopSearchResults(loader.context,data['search']).get_profiles()
             for profile in islice(candidates,20):
+                if time_budget_approaching():
+                    break
                 if profile.is_private:
                     continue
                 followers=profile.followers
@@ -88,6 +98,10 @@ def collect(data):
             hashtag_posts = hashtag.get_posts()
 
             for post in islice(hashtag_posts, policy["items_per_query"]):
+                if time_budget_approaching():
+                    if 'instagram_time_budget_reached' not in notes:
+                        notes.append('instagram_time_budget_reached')
+                    break
                 if not post.owner_profile.is_private:
                     if not append(post):
                         break
@@ -96,11 +110,19 @@ def collect(data):
                         else il.TopSearchResults(loader.context,query["term"].lstrip("@")).get_profiles())
             # Profile search discovers public accounts; it is not full-text caption search.
             for profile in islice(profiles,3):
+                if time_budget_approaching():
+                    if 'instagram_time_budget_reached' not in notes:
+                        notes.append('instagram_time_budget_reached')
+                    break
                 if profile.is_private:
                     warnings.append("instagram_private_profile_skipped")
                     continue
                 remaining = policy["items_per_query"]-len(records)
                 for post in islice(profile.get_posts(),remaining):
+                    if time_budget_approaching():
+                        if 'instagram_time_budget_reached' not in notes:
+                            notes.append('instagram_time_budget_reached')
+                        break
                     if not append(post):
                         break
                     if data.get('time_window'):
@@ -108,7 +130,9 @@ def collect(data):
                         if TimeWindow.parse(data['time_window']).classify(records[-1]['published_at']) == 'STALE':
                             # Keep the boundary item for the stale audit count; stop this source.
                             break
-                if len(records) >= policy["items_per_query"]:
+                if len(records) >= policy["items_per_query"] or time_budget_approaching():
+                    if time_budget_approaching() and 'instagram_time_budget_reached' not in notes:
+                        notes.append('instagram_time_budget_reached')
                     break
     except Exception as exc:
         if isinstance(exc,ex.TooManyRequestsException):

@@ -1,0 +1,172 @@
+import time
+import unittest
+from unittest.mock import patch, MagicMock
+from app.intelligence.boolean import eval_boolean_match, is_boolean_query, format_search_query
+from app.intelligence.rules import analyze
+from app.config.profile import Profile, Policy
+from app.normalization.models import WatchtowerEvent
+from app.auditing.engine import AuditEngine
+from app.storage.repository import Repository
+from app.connectors.base import SourceConnector, Batch
+
+class EnhancementsTests(unittest.TestCase):
+    def test_complex_multilingual_boolean_matching(self):
+        query = '("Ooty" OR "ऊटी" OR "உட்டி") AND ("Indian Army" OR "भारतीय सेना") -filter:retweets'
+        
+        # Matches Ooty + Indian Army
+        text1 = "Heavy snowfall in Ooty as Indian Army assists relief operations."
+        self.assertTrue(eval_boolean_match(query, text1))
+        
+        # Matches Hindi terms: ऊटी + भारतीय सेना
+        text2 = "ऊटी में भारतीय सेना ने मोर्चा संभाला।"
+        self.assertTrue(eval_boolean_match(query, text2))
+        
+        # Matches Tamil term: உட்டி + Indian Army
+        text3 = "உட்டி பகுதியில் Indian Army patrolling."
+        self.assertTrue(eval_boolean_match(query, text3))
+        
+        # Missing second clause (no Indian Army / भारतीय सेना)
+        text4 = "Beautiful weather in Ooty today."
+        self.assertFalse(eval_boolean_match(query, text4))
+        
+        # Contains excluded term: filter:retweets
+        text5 = "Ooty updates with Indian Army filter:retweets"
+        self.assertFalse(eval_boolean_match(query, text5))
+        text5_rt = "RT @mod_india: Ooty updates with Indian Army"
+        self.assertFalse(eval_boolean_match(query, text5_rt))
+
+    def test_multi_term_or_search(self):
+        query = "a or b or c or d"
+        self.assertTrue(eval_boolean_match(query, "this contains c and other stuff"))
+        self.assertTrue(eval_boolean_match(query, "apple b banana"))
+        self.assertFalse(eval_boolean_match(query, "xyz nothing here"))
+
+    def test_phrase_search_in_quotes(self):
+        query = '"United Nations" AND "peace keeping"'
+        self.assertTrue(eval_boolean_match(query, "The United Nations announced new peace keeping missions."))
+        self.assertFalse(eval_boolean_match(query, "United states and Nations in peace."))
+
+    def test_transcript_relevance_analysis(self):
+        profile = Profile.parse({
+            'name': 'Transcript test',
+            'platforms': {'youtube': True},
+            'dimensions': {'keywords': {'enabled': True, 'values': ['rescue operation']}}
+        })
+        # Video title and content do NOT contain 'rescue operation', but transcript does!
+        event = WatchtowerEvent(
+            platform='youtube', source_id='yt-channel-1', source_type='channel',
+            item_id='v123', url='https://youtube.com/watch?v=v123', published_at='2026-09-12T10:00:00Z',
+            account='NewsChannel', title='Breaking news broadcast today',
+            content='Watch today video broadcast covering local events.',
+            metadata={'transcript_text': 'Spoken dialogue: The rescue operation has commenced in the affected district.'}
+        )
+        analysis = analyze(event, profile)
+        self.assertTrue(analysis['relevant'])
+        self.assertIn('rescue operation', analysis['matches']['keywords'])
+
+    def test_default_platform_policy_values(self):
+        profile = Profile.parse({
+            'name': 'Policy defaults test',
+            'platforms': {'instagram': True, 'web': True}
+        })
+        self.assertEqual(profile.policies['instagram'].timeout_seconds, 60)
+        self.assertEqual(profile.policies['web'].pages_per_query, 5)
+
+    def test_parallel_platform_execution(self):
+        class DelayedConnector(SourceConnector):
+            def __init__(self, platform):
+                super().__init__()
+                self.platform = platform
+            def available(self):
+                return True, ""
+            def search(self, query, policy):
+                time.sleep(0.25)
+                return Batch(records=[], raw_response={})
+            def normalize(self, raw):
+                pass
+
+        profile = Profile.parse({
+            'name': 'Parallel test',
+            'platforms': {'youtube': True, 'instagram': True},
+            'dimensions': {'keywords': {'enabled': True, 'values': ['test']}}
+        })
+        repo = MagicMock()
+        repo.begin.return_value = 'test-run'
+        repo.cache_get.return_value = None
+        repo.incremental_state.return_value = None
+        
+        connectors = {
+            'youtube': DelayedConnector('youtube'),
+            'instagram': DelayedConnector('instagram')
+        }
+        engine = AuditEngine(repo, connectors)
+        
+        t0 = time.time()
+        report = engine.run(profile)
+        elapsed = time.time() - t0
+        
+        # Both delayed connectors took 0.25s. If executed sequentially, total would be >= 0.5s.
+        # In parallel, total should be under 0.45s.
+        self.assertLess(elapsed, 0.45)
+        self.assertEqual(report['status'], 'complete')
+
+    def test_instagram_worker_returns_partial_on_time_budget(self):
+        from app.connectors.instagram.worker import collect
+        from unittest.mock import MagicMock
+        import datetime
+
+        # Mock instaloader
+        mock_post1 = MagicMock()
+        mock_post1.mediaid = 1001
+        mock_post1.shortcode = 'ABC1'
+        mock_post1.owner_id = 99
+        mock_post1.owner_username = 'user1'
+        mock_post1.caption = 'post 1'
+        mock_post1.date_utc = datetime.datetime(2026, 9, 12, tzinfo=datetime.timezone.utc)
+        mock_post1.is_video = False
+        mock_post1.url = 'https://instagr.am/p/ABC1'
+        mock_post1.likes = 10
+        mock_post1.comments = 2
+        mock_post1._asdict.return_value = {}
+        mock_post1.owner_profile.is_private = False
+
+        mock_post2 = MagicMock()
+        mock_post2.mediaid = 1002
+        mock_post2.shortcode = 'ABC2'
+        mock_post2.owner_id = 99
+        mock_post2.owner_username = 'user1'
+        mock_post2.caption = 'post 2'
+        mock_post2.date_utc = datetime.datetime(2026, 9, 12, tzinfo=datetime.timezone.utc)
+        mock_post2.is_video = False
+        mock_post2.url = 'https://instagr.am/p/ABC2'
+        mock_post2.likes = 5
+        mock_post2.comments = 1
+        mock_post2._asdict.return_value = {}
+        mock_post2.owner_profile.is_private = False
+
+        with patch('instaloader.Instaloader') as MockIL, \
+             patch('instaloader.Hashtag.from_name') as MockHT, \
+             patch('app.connectors.instagram.access.read_cookies', return_value={}):
+            mock_loader = MagicMock()
+            MockIL.return_value = mock_loader
+            mock_loader.load_session.return_value = None
+
+            mock_hashtag = MagicMock()
+            MockHT.return_value = mock_hashtag
+            mock_hashtag.get_posts.return_value = [mock_post1, mock_post2]
+
+            # Set a very small timeout budget so time_budget_approaching() is triggered
+            # or mock time.monotonic so 2nd post triggers timeout
+            monotonic_values = [0.0, 0.0, 59.0, 59.0, 59.0]
+            with patch('time.monotonic', side_effect=monotonic_values):
+                result = collect({
+                    'query': {'dimension': 'hashtags', 'term': 'ooty'},
+                    'policy': {'timeout_seconds': 60, 'items_per_query': 10},
+                    'access': {'session_file': '/fake/session', 'username': 'testuser'}
+                })
+
+            self.assertIn('records', result)
+            self.assertIn('instagram_time_budget_reached', result.get('notes', []))
+
+if __name__ == '__main__':
+    unittest.main()

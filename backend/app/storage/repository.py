@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sqlite3
 import uuid
+import threading
 from app.normalization.models import now
 from app.storage.application import ApplicationStorage, SCHEMA
 
@@ -20,7 +21,8 @@ class Repository(ApplicationStorage):
     def __init__(self, path="data/watchtower.sqlite3"):
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(path, timeout=10)
+        self.lock = threading.RLock()
+        self.db = sqlite3.connect(path, timeout=30, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -78,7 +80,7 @@ class Repository(ApplicationStorage):
         return rid
 
     def save_report(self, report):
-        with self.db:
+        with self.lock, self.db:
             self.db.execute("UPDATE audit_runs SET status=?,finished_at=?,report=? WHERE id=?",
                             (report["status"], report.get("finished_at"), encode(report), report["id"]))
             for platform, audit in report["platforms"].items():
@@ -94,13 +96,14 @@ class Repository(ApplicationStorage):
 
     def store_raw(self, run_id, platform, query, raw):
         fingerprint = digest(raw)
-        cached = self.db.execute("SELECT 1 FROM source_records WHERE platform=? AND content_hash=? AND event_id IS NOT NULL LIMIT 1",
-                                 (platform,fingerprint)).fetchone() is not None
-        rid = str(uuid.uuid4())
-        with self.db:
-            self.db.execute("INSERT INTO source_records VALUES (?,?,?,?,?,?,?,?,?)",
-                            (rid,run_id,platform,query,encode(raw),fingerprint,now(),None,None))
-        return rid, cached
+        with self.lock:
+            cached = self.db.execute("SELECT 1 FROM source_records WHERE platform=? AND content_hash=? AND event_id IS NOT NULL LIMIT 1",
+                                     (platform,fingerprint)).fetchone() is not None
+            rid = str(uuid.uuid4())
+            with self.db:
+                self.db.execute("INSERT INTO source_records VALUES (?,?,?,?,?,?,?,?,?)",
+                                (rid,run_id,platform,query,encode(raw),fingerprint,now(),None,None))
+            return rid, cached
 
     def raw_error(self, record_id, code):
         with self.db:
@@ -109,7 +112,7 @@ class Repository(ApplicationStorage):
     def store_event(self, run_id, record_id, event, analysis):
         eid = digest([event.platform,event.item_id])
         normalized = encode(event.to_dict())
-        with self.db:
+        with self.lock, self.db:
             self.db.execute("INSERT INTO events VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET normalized=excluded.normalized",
                             (eid,event.platform,event.item_id,normalized))
             self.db.execute("INSERT INTO event_sources VALUES (?,?,?)", (eid,record_id,normalized))

@@ -101,4 +101,6 @@ class YouTubeConnector(SourceConnector):
             media=[{"type": "video", "id": ident, 'thumbnails':record.get('thumbnails',[])}],
             metadata={"title": record.get("title"), "duration": record.get("duration"),
                       "time_precision":'day' if date_only else 'second',
-                      "collection_scope": "video_metadata", "transcript_status": "not_collected"}).validate()
+                      "collection_scope": "video_metadata",
+                      "transcript_status": record.get("transcript_status", "collected" if record.get("transcript_text") else "not_collected"),
+                      "transcript_text": record.get("transcript_text")}).validate()

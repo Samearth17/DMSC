@@ -15,11 +15,11 @@ class InstagramConnector(SourceConnector):
         self.access = {}
         self.cache_scope = None
 
-    def operation(self, data, timeout=45):
+    def operation(self, data, timeout=60):
         data = {**data,'access':dict(self.access)}
         try:
             result = subprocess.run([sys.executable,'-m','app.connectors.instagram.worker'],
-                input=json.dumps(data),capture_output=True,text=True,encoding='utf-8',timeout=timeout,check=False)
+                input=json.dumps(data),capture_output=True,text=True,encoding='utf-8',timeout=timeout+5,check=False)
         except subprocess.TimeoutExpired:
             return {'error':'instagram_timeout'}
         try:
@@ -48,4 +48,6 @@ class InstagramConnector(SourceConnector):
             published_at_source='instagram_post' if record.get('published_at') else None,
             time_confidence=1.0 if record.get('published_at') else None,author=record.get('username'),
             media=record.get("media",[]),metadata={"collection_scope":"public_posts_from_discovered_profiles_or_hashtag",
-              "transcript_status":"not_collected","discovery_method":record.get("discovery_method")}).validate()
+              "transcript_status":record.get("transcript_status", "collected" if record.get("transcript_text") else "not_collected"),
+              "transcript_text":record.get("transcript_text"),
+              "discovery_method":record.get("discovery_method")}).validate()
