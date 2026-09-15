@@ -12,6 +12,8 @@ def read(controller, path, query):
             return repo.values(path.rsplit('/',1)[-1].replace('-','_'))
     if path=='/api/instagram':
         return controller.instagram_status()
+    if path=='/api/transcription':
+        return controller.transcription_status()
     if path=='/api/platforms':
         return {p:{'deferred':p in {'x','reddit'},'search':p not in {'x','reddit'},
                    'profiles':p=='instagram','saved_sources':p in {'instagram','news'},
@@ -62,6 +64,10 @@ def write(controller,path,data):
         return controller.instagram_configure(data)
     if path=='/api/instagram/scrape':
         return controller.instagram_scrape(data)
+    if path=='/api/transcription/configure':
+        return controller.transcription_configure(data)
+    if path=='/api/transcription/transcribe':
+        return controller.transcribe_record(data)
     if path in {'/api/instagram/test','/api/instagram/search'}:
         return controller.instagram_operation(data,'test' if path.endswith('test') else 'profiles')
     if path=='/api/reprocess':

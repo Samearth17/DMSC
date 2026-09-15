@@ -168,7 +168,7 @@ const templates = {
 
   alerts: '<p>High-relevance matches requiring your attention.</p><div id="alert-results"></div>',
 
-  settings: '<div class="panel" id="settings-policies-panel"><h2>⚙️ Collection Settings</h2><p>Adjust how many items to fetch, timeout budgets, and page counts per platform.</p><div id="settings-policies"></div><div class="actions"><button id="save-settings-policies" class="primary">💾 Save Settings</button></div></div><div class="panel"><h2>📸 Instagram Connection</h2><p>Import your Instaloader session file to enable Instagram monitoring.</p><div class="limit-grid"><label>Username<input id="ig-username" autocomplete="off" placeholder="your_username"></label><label>Session file<input id="ig-session" type="file"></label></div><div class="actions"><button id="ig-configure">Import Session</button><button id="ig-test">Test Connection</button></div><p id="ig-status"></p></div><div class="panel"><h2>🔎 Find Instagram Profiles</h2><p>Search public profiles to add them for monitoring.</p><div class="limit-grid"><label>Search<input id="ig-search" placeholder="e.g. kashmir news"></label><label>Min followers<input id="ig-min" type="number" min="0"></label><label>Max followers<input id="ig-max" type="number" min="0"></label></div><button id="ig-find">Search</button><div id="ig-results"></div></div><div class="panel"><h2>⏰ Scheduled Audits</h2><p>Automatically run audits at regular intervals.</p><label class="check"><input id="schedule-enabled" type="checkbox">Enable auto-schedule</label><label>Run every (minutes)<input id="schedule-minutes" type="number" min="5" max="10080" value="60"></label><button id="save-schedule">Save Schedule</button><p id="schedule-next"></p></div>'
+  settings: '<div class="panel" id="settings-policies-panel"><h2>⚙️ Collection Settings</h2><p>Adjust how many items to fetch, timeout budgets, and page counts per platform.</p><div id="settings-policies"></div><div class="actions"><button id="save-settings-policies" class="primary">💾 Save Settings</button></div></div><div class="panel" id="settings-transcription-panel"><h2>🎙️ Video & Audio Transcription (WhisperFlow / Whisper)</h2><p>Extract spoken audio dialogue from YouTube videos and Instagram reels to evaluate keyword and entity relevance.</p><div id="transcription-status-box" class="notice-banner" style="background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;color:#166534;margin:12px 0;padding:12px 16px;border-radius:8px;"><strong id="transcription-status-badge">✅ Local Engine: Installed (openai-whisper)</strong><p id="transcription-status-notes" style="margin:4px 0 0;font-size:13px;"></p></div><div class="limit-grid"><label>Engine Mode<select id="transcribe-mode"><option value="whisper">Local Whisper (Runs on this Mac)</option><option value="whisperflow_api">WhisperFlow / OpenAI Cloud API</option></select></label><label>Local Whisper Model<select id="transcribe-model"><option value="tiny">tiny (Fastest, low memory)</option><option value="base" selected>base (Recommended)</option><option value="small">small (Higher accuracy)</option><option value="medium">medium (Best accuracy)</option></select></label><label id="transcribe-key-wrap" style="grid-column:span 2">WhisperFlow / OpenAI API Key (Optional for Cloud Mode)<input id="transcribe-api-key" type="password" placeholder="Enter API key (sk-...) for cloud transcription"></label><label id="transcribe-endpoint-wrap" style="grid-column:span 2">API Endpoint URL (Optional)<input id="transcribe-api-endpoint" placeholder="https://api.openai.com/v1/audio/transcriptions"></label></div><label class="check" style="margin-top:12px"><input id="transcribe-auto-toggle" type="checkbox">Automatically transcribe videos during audits</label><div class="actions" style="margin-top:14px"><button id="save-transcription-btn" class="primary">💾 Save Transcription Settings</button></div><details style="margin-top:16px"><summary style="cursor:pointer;font-weight:600;color:var(--blue)">🧪 Test Audio/Video Transcription</summary><div class="limit-grid" style="margin-top:12px"><label style="grid-column:span 2">Video URL or Audio URL<input id="test-transcribe-url" placeholder="e.g. YouTube watch URL or Instagram video URL"></label></div><div class="actions" style="margin-top:10px"><button id="test-transcribe-btn">🎙️ Test Transcription</button></div><div id="test-transcribe-result" style="margin-top:12px" hidden></div></details></div><div class="panel"><h2>📸 Instagram Connection</h2><p>Import your Instaloader session file to enable Instagram monitoring.</p><div class="limit-grid"><label>Username<input id="ig-username" autocomplete="off" placeholder="your_username"></label><label>Session file<input id="ig-session" type="file"></label></div><div class="actions"><button id="ig-configure">Import Session</button><button id="ig-test">Test Connection</button></div><p id="ig-status"></p></div><div class="panel"><h2>🔎 Find Instagram Profiles</h2><p>Search public profiles to add them for monitoring.</p><div class="limit-grid"><label>Search<input id="ig-search" placeholder="e.g. kashmir news"></label><label>Min followers<input id="ig-min" type="number" min="0"></label><label>Max followers<input id="ig-max" type="number" min="0"></label></div><button id="ig-find">Search</button><div id="ig-results"></div></div><div class="panel"><h2>⏰ Scheduled Audits</h2><p>Automatically run audits at regular intervals.</p><label class="check"><input id="schedule-enabled" type="checkbox">Enable auto-schedule</label><label>Run every (minutes)<input id="schedule-minutes" type="number" min="5" max="10080" value="60"></label><button id="save-schedule">Save Schedule</button><p id="schedule-next"></p></div>'
 };
 
 /* ── Build navigation & views ── */
@@ -194,7 +194,7 @@ async function navigate(view) {
   if (view === 'events') renderEvents($('event-results'), await api('/api/incidents'));
   if (view === 'sources') await sources();
   if (view === 'alerts') await alerts();
-  if (view === 'settings') { await instagramStatus(); renderSettingsPolicies(); }
+  if (view === 'settings') { await instagramStatus(); renderSettingsPolicies(); await renderTranscriptionSettings(); }
   if (view === 'run') runSummary();
 }
 
@@ -658,6 +658,36 @@ function recordCard(item) {
     action('🔗 Open original', () => { window.open(e.url, '_blank'); }),
     action('🖨️ Print Record / PDF', () => printRecordDossier(item))
   );
+
+  const isVideoRecord = e.platform === 'youtube' || e.media?.[0]?.type === 'video' || e.metadata?.is_video;
+  if (isVideoRecord && !e.metadata?.transcript_text) {
+    const transcribeBtn = action('🎙️ Transcribe Audio', async () => {
+      transcribeBtn.disabled = true;
+      transcribeBtn.textContent = '⏳ Transcribing...';
+      try {
+        const res = await api('/api/transcription/transcribe', { event_id: e.id, url: e.url });
+        if (res.status === 'collected' && res.text) {
+          e.metadata = e.metadata || {};
+          e.metadata.transcript_text = res.text;
+          e.metadata.transcript_status = 'collected';
+          transcribeBtn.textContent = '✅ Transcribed';
+          const tBox = node('div', undefined, 'transcript-box');
+          tBox.textContent = '🎙️ Transcript: ' + (res.text.length > 250 ? res.text.slice(0, 250) + '…' : res.text);
+          card.insertBefore(tBox, cardActions);
+          notice('✅ Spoken audio transcribed & relevance updated!');
+        } else {
+          transcribeBtn.disabled = false;
+          transcribeBtn.textContent = '🎙️ Transcribe Audio';
+          notice('⚠️ ' + (res.error || 'Could not transcribe'));
+        }
+      } catch (err) {
+        transcribeBtn.disabled = false;
+        transcribeBtn.textContent = '🎙️ Transcribe Audio';
+        notice('❌ Error: ' + err.message);
+      }
+    });
+    cardActions.append(transcribeBtn);
+  }
   card.append(cardActions);
 
   return card;
@@ -969,6 +999,77 @@ function printScrapedPost(post) {
   window.print();
   window.addEventListener('afterprint', () => document.body.classList.remove('printing-record'), { once: true });
 }
+
+/* ── Transcription Settings & Test ── */
+async function renderTranscriptionSettings() {
+  const s = await api('/api/transcription');
+  const badge = $('transcription-status-badge');
+  const notes = $('transcription-status-notes');
+  const banner = $('transcription-status-box');
+
+  if (badge && banner) {
+    if (s.local_installed) {
+      badge.textContent = `✅ Local Whisper Engine: Installed (openai-whisper)` + (s.ffmpeg_installed ? ' · ffmpeg Ready' : ' · (ffmpeg needed for local audio; or use Cloud API)');
+      banner.style.background = s.ffmpeg_installed ? '#f0fdf4' : '#fffbeb';
+      banner.style.borderColor = s.ffmpeg_installed ? '#bbf7d0' : '#fde68a';
+      banner.style.color = s.ffmpeg_installed ? '#166534' : '#92400e';
+    } else {
+      badge.textContent = `⚠️ Local Whisper not installed · Using Cloud API or Subtitles`;
+      banner.style.background = '#fffbeb';
+      banner.style.borderColor = '#fde68a';
+      banner.style.color = '#92400e';
+    }
+  }
+
+  if (notes && s.notes?.length) {
+    notes.textContent = s.notes.join(' · ');
+  }
+
+  if ($('transcribe-mode')) $('transcribe-mode').value = s.provider || 'whisper';
+  if ($('transcribe-model')) $('transcribe-model').value = s.model || 'base';
+  if ($('transcribe-api-key') && s.api_key_masked) $('transcribe-api-key').placeholder = `Configured (${s.api_key_masked}) — enter new key to replace`;
+  if ($('transcribe-api-endpoint')) $('transcribe-api-endpoint').value = s.api_endpoint || '';
+  if ($('transcribe-auto-toggle')) $('transcribe-auto-toggle').checked = !!s.auto_transcribe;
+}
+
+bind('save-transcription-btn', async () => {
+  const provider = $('transcribe-mode').value;
+  const model = $('transcribe-model').value;
+  const keyVal = $('transcribe-api-key').value.trim();
+  const endpoint = $('transcribe-api-endpoint').value.trim();
+  const autoTranscribe = $('transcribe-auto-toggle').checked;
+
+  const payload = { provider, model, api_endpoint: endpoint, auto_transcribe: autoTranscribe };
+  if (keyVal) payload.api_key = keyVal;
+
+  await api('/api/transcription/configure', payload);
+  await renderTranscriptionSettings();
+  notice('✅ Transcription settings saved!');
+});
+
+bind('test-transcribe-btn', async () => {
+  const url = $('test-transcribe-url').value.trim();
+  if (!url) throw new Error('Enter a video or audio URL to test');
+  const resDiv = $('test-transcribe-result');
+  resDiv.hidden = false;
+  resDiv.replaceChildren(node('p', '⏳ Processing and transcribing audio (may take 10-30s)...', 'muted'));
+  try {
+    const res = await api('/api/transcription/transcribe', { url });
+    resDiv.replaceChildren();
+    if (res.status === 'collected' && res.text) {
+      const box = node('div', undefined, 'transcript-box');
+      box.textContent = '🎙️ Transcript: ' + res.text;
+      resDiv.append(node('p', '✅ Transcription successful (' + (res.provider || 'Whisper') + ')!', 'status'), box);
+      notice('✅ Transcription completed!');
+    } else {
+      resDiv.append(node('p', '⚠️ ' + (res.error || 'No transcript generated'), 'empty'));
+      notice('⚠️ ' + (res.error || 'No transcript generated'));
+    }
+  } catch (err) {
+    resDiv.replaceChildren(node('p', '❌ ' + err.message, 'empty'));
+    notice('❌ ' + err.message);
+  }
+});
 
 /* ── Instagram Settings ── */
 async function instagramStatus() {

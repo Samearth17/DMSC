@@ -223,6 +223,16 @@ class EnhancementsTests(unittest.TestCase):
                 'since': '2026-09-14T00:00:00Z'
             }, timeout=90)
 
+            # Test transcription status & configure
+            status = c.transcription_status()
+            self.assertTrue(status['local_installed'])
+            self.assertIn('provider', status)
+
+            configured = c.transcription_configure({'provider': 'whisperflow_api', 'api_key': 'sk-test123456789'})
+            self.assertEqual(configured['provider'], 'whisperflow_api')
+            self.assertTrue(configured['has_api_key'])
+            self.assertIn('...6789', configured['api_key_masked'])
+
 
 if __name__ == '__main__':
     unittest.main()

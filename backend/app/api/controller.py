@@ -257,3 +257,54 @@ class Controller:
                     'capabilities':{p:{'installed':c.available()[0],'note':c.available()[1],
                                       'live_access':'determined_by_audit'} for p,c in self.connectors.items()},
                     'deferred':['x','reddit']}
+
+    def transcription_status(self):
+        from app.intelligence.transcription import get_transcription_status
+        with self.repository() as repo:
+            cfg = repo.setting('transcription_config', {})
+        return get_transcription_status(cfg)
+
+    def transcription_configure(self, data):
+        if not isinstance(data, dict):
+            raise ValueError('Configuration must be a dictionary')
+        from app.intelligence.transcription import get_transcription_status
+        with self.repository() as repo:
+            cfg = repo.setting('transcription_config', {})
+            cfg.update(data)
+            repo.set_setting('transcription_config', cfg)
+        return get_transcription_status(cfg)
+
+    def transcribe_record(self, data):
+        url = data.get('url')
+        event_id = data.get('event_id')
+        with self.repository() as repo:
+            cfg = repo.setting('transcription_config', {})
+            if event_id:
+                row = repo.db.execute("SELECT normalized FROM events WHERE id=?", (event_id,)).fetchone()
+                if not row:
+                    raise ValueError(f"Event {event_id} not found")
+                event_data = json.loads(row[0])
+                target_url = url or event_data.get('url')
+                if not target_url:
+                    raise ValueError("Record has no media URL to transcribe")
+                from app.intelligence.transcription import transcribe_audio
+                res = transcribe_audio(target_url, config=cfg)
+                if res.get('status') == 'collected' and res.get('text'):
+                    event_data.setdefault('metadata', {})
+                    event_data['metadata']['transcript_text'] = res['text']
+                    event_data['metadata']['transcript_status'] = 'collected'
+                    normalized_str = json.dumps(event_data, ensure_ascii=False)
+                    repo.db.execute("UPDATE events SET normalized=? WHERE id=?", (normalized_str, event_id))
+                    from app.normalization.models import WatchtowerEvent
+                    from app.intelligence.rules import analyze
+                    wevent = WatchtowerEvent(**{k: v for k, v in event_data.items() if k in WatchtowerEvent.__dataclass_fields__})
+                    analysis = analyze(wevent, self.profile)
+                    repo.db.execute("UPDATE analysis_results SET analysis=? WHERE event_id=?", (json.dumps(analysis), event_id))
+                    return {'status': 'collected', 'text': res['text'], 'analysis': analysis, 'provider': res.get('provider')}
+                return res
+            elif url:
+                from app.intelligence.transcription import transcribe_audio
+                return transcribe_audio(url, config=cfg)
+            else:
+                raise ValueError("Provide event_id or url to transcribe")
+
