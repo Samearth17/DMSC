@@ -179,7 +179,7 @@ def collect(data):
             return {'error':'instagram_not_configured'}
         if data.get('operation') == 'test':
             logged_in=loader.test_login()
-            return {'status':'Connected'} if logged_in and logged_in.casefold()==username.casefold() else {'error':'instagram_session_expired'}
+            return {'status':'Connected'} if logged_in else {'error':'instagram_session_expired'}
         if data.get('operation') == 'scrape':
             scrape_type = data.get('scrape_type', 'profile')
             target = str(data.get('target', '')).strip()
