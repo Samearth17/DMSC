@@ -113,6 +113,33 @@ def _iter_hashtag_posts(loader, tag, limit=50):
             pass
 
 
+def _parse_time_bounds(data):
+    since_dt, until_dt = None, None
+    since_val = data.get('since')
+    if since_val:
+        try:
+            s = str(since_val).replace('Z', '+00:00')
+            dt = datetime.fromisoformat(s)
+            since_dt = dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo else dt
+        except Exception:
+            pass
+    elif data.get('hours'):
+        try:
+            from datetime import timedelta
+            since_dt = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=float(data['hours']))
+        except Exception:
+            pass
+    until_val = data.get('until')
+    if until_val:
+        try:
+            u = str(until_val).replace('Z', '+00:00')
+            dt = datetime.fromisoformat(u)
+            until_dt = dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo else dt
+        except Exception:
+            pass
+    return since_dt, until_dt
+
+
 def collect(data):
     started = time.monotonic()
     import instaloader as il
@@ -145,7 +172,7 @@ def collect(data):
         node = getattr(post, "_node", {}) if isinstance(getattr(post, "_node", None), dict) else {}
         likes = (node.get("edge_media_preview_like", {}).get("count")
                  if isinstance(node.get("edge_media_preview_like"), dict)
-                 else node.get("like_count"))
+                 else node.get("likes"))
         if likes is None:
             try:
                 likes = post.likes
@@ -184,6 +211,7 @@ def collect(data):
             scrape_type = data.get('scrape_type', 'profile')
             target = str(data.get('target', '')).strip()
             limit = int(data.get('limit', 10))
+            since_dt, until_dt = _parse_time_bounds(data)
             profile_info = None
 
             if scrape_type == 'profile':
@@ -217,8 +245,16 @@ def collect(data):
                         warnings.append('instagram_private_profile_skipped')
                         return {'profile': profile_info, 'records': [], 'warnings': ['This profile is private. Posts cannot be viewed without following.'], 'notes': []}
 
-                    for post in islice(profile_obj.get_posts(), limit):
+                    for post in profile_obj.get_posts():
+                        pdate = getattr(post, 'date_utc', None)
+                        if pdate:
+                            if until_dt and pdate > until_dt:
+                                continue
+                            if since_dt and pdate < since_dt:
+                                break
                         if not append(post):
+                            break
+                        if len(records) >= limit:
                             break
                 else:
                     return {'error': 'instagram_collection_error', 'notes': [f'Could not find public profile @{user}']}
@@ -227,8 +263,17 @@ def collect(data):
                 tag = target.lstrip('#').strip()
                 method = "hashtag"
                 try:
-                    for post in _iter_hashtag_posts(loader, tag, limit):
+                    search_limit = max(limit * 3, 30) if (since_dt or until_dt) else limit
+                    for post in _iter_hashtag_posts(loader, tag, search_limit):
+                        pdate = getattr(post, 'date_utc', None)
+                        if pdate:
+                            if until_dt and pdate > until_dt:
+                                continue
+                            if since_dt and pdate < since_dt:
+                                continue
                         if not append(post):
+                            break
+                        if len(records) >= limit:
                             break
                     if not records:
                         warnings.append(f'No posts found for #{tag}. The hashtag may be inactive or restricted.')

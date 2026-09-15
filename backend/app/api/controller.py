@@ -183,12 +183,16 @@ class Controller:
                 return {'error': 'instaloader_not_installed'}
             if not connector.access:
                 return {'error': 'instagram_not_configured'}
-            return connector.operation({
+            payload = {
                 'operation': 'scrape',
                 'scrape_type': scrape_type,
                 'target': target,
                 'limit': limit
-            }, timeout=90)
+            }
+            for k in ('hours', 'since', 'until'):
+                if data.get(k) is not None:
+                    payload[k] = data[k]
+            return connector.operation(payload, timeout=90)
 
     def instagram_operation(self,data,operation):
         from app.normalization.models import now

@@ -211,6 +211,18 @@ class EnhancementsTests(unittest.TestCase):
                 'limit': 5
             }, timeout=90)
 
+            # Test with timeline parameters (hours, since, until)
+            mock_connector.operation.reset_mock()
+            c.instagram_scrape({'type': 'profile', 'target': 'indianarmy', 'limit': 5, 'hours': 24, 'since': '2026-09-14T00:00:00Z'})
+            mock_connector.operation.assert_called_once_with({
+                'operation': 'scrape',
+                'scrape_type': 'profile',
+                'target': 'indianarmy',
+                'limit': 5,
+                'hours': 24,
+                'since': '2026-09-14T00:00:00Z'
+            }, timeout=90)
+
 
 if __name__ == '__main__':
     unittest.main()

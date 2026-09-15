@@ -1358,3 +1358,182 @@ footer {
 @keyframes igspin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Print & Record Dossier Styles ── */
+#print-dossier {
+  display: none;
+}
+
+@media print {
+  /* Hide interactive web chrome */
+  .rail,
+  header,
+  nav,
+  .actions,
+  form,
+  .btn-close,
+  #notice,
+  footer,
+  dialog,
+  .guide-chips,
+  .search-guide-box,
+  .ig-chips,
+  .ig-tabs,
+  button {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10.5pt !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 10mm !important;
+    max-width: 100% !important;
+  }
+
+  /* Record specific print mode */
+  body.printing-record > main,
+  body.printing-record > aside,
+  body.printing-record > dialog {
+    display: none !important;
+  }
+
+  body.printing-record #print-dossier {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 12mm 16mm !important;
+    box-sizing: border-box !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    color: #1e293b !important;
+    background: #fff !important;
+  }
+
+  .dossier-header {
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .dossier-title h1 {
+    font-size: 18pt;
+    font-weight: 800;
+    margin: 0 0 4px 0;
+    color: #0f172a;
+    letter-spacing: -0.5px;
+  }
+
+  .dossier-title p {
+    margin: 0;
+    font-size: 9pt;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+
+  .dossier-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: 9.5pt;
+  }
+
+  .dossier-meta-item {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dossier-meta-item span.label {
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+
+  .dossier-meta-item span.value {
+    font-weight: 600;
+    color: #0f172a;
+    word-break: break-all;
+  }
+
+  .dossier-section {
+    margin-bottom: 18px;
+  }
+
+  .dossier-section-title {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #0f172a;
+    border-bottom: 1px solid #cbd5e1;
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+  }
+
+  .dossier-content-box {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 10pt;
+    line-height: 1.6;
+    color: #1e293b;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .dossier-transcript-box {
+    background: #f1f5f9;
+    border-left: 4px solid #3b82f6;
+    padding: 12px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 9.5pt;
+    line-height: 1.5;
+    color: #1e293b;
+  }
+
+  .dossier-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .dossier-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 8pt;
+    font-weight: 700;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+  }
+
+  .dossier-footer {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 10px;
+    margin-top: 24px;
+    font-size: 8pt;
+    color: #94a3b8;
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
