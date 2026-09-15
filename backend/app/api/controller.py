@@ -102,18 +102,43 @@ class Controller:
                 repo.set_setting('active_profile',self.profile.snapshot())
         return {'archived':True}
 
+    def _find_local_session(self):
+        root = Path(__file__).resolve().parents[3]
+        search_dirs = [
+            Path('.'),
+            Path(self.path).parent,
+            root,
+            Path(self.path).parent / 'sessions',
+            Path.home() / '.config' / 'instaloader',
+        ]
+        for d in search_dirs:
+            if not d.exists():
+                continue
+            for pattern in ('session-*.json', 'session.json', 'session-*'):
+                for p in d.glob(pattern):
+                    if p.is_file() and p.stat().st_size > 0:
+                        return p
+        return None
+
     def instagram_status(self):
+        import re
         with self.repository() as repo:
             config=repo.setting('instagram_access',{})
             last=repo.setting('instagram_status',{})
-        root = Path(__file__).resolve().parents[3]
-        has_local = Path('session-jacethepint.json').exists() or (Path(self.path).parent/'session-jacethepint.json').exists() or (root/'session-jacethepint.json').exists()
+        found = self._find_local_session()
+        detected_user = ''
+        if found:
+            m = re.search(r'session-([A-Za-z0-9_.]+)', found.stem)
+            detected_user = m.group(1) if m else ''
         return {'username':config.get('username',''),'configured':bool(config),
                 'status':last.get('status','Not tested' if config else 'Not configured'),
                 'error':last.get('error'),'tested_at':last.get('tested_at'),
-                'has_local_file':has_local}
+                'has_local_file':bool(found),
+                'local_filename':found.name if found else '',
+                'detected_username':detected_user}
 
     def instagram_configure(self,data):
+        import re
         from app.connectors.instagram.access import import_session_data, save_session_cookies, read_cookies
         with self.lock:
             if self.running:
@@ -125,13 +150,13 @@ class Controller:
                     cookies['ds_user_id'] = data['ds_user_id'].strip()
                 config = save_session_cookies(sessions_dir, data.get('username','').strip(), cookies)
             elif data.get('use_local_file'):
-                root = Path(__file__).resolve().parents[3]
-                local_candidates = [Path('session-jacethepint.json'), Path(self.path).parent/'session-jacethepint.json', root/'session-jacethepint.json']
-                found = next((p for p in local_candidates if p.exists()), None)
+                found = self._find_local_session()
                 if not found:
-                    raise ValueError('No local session-jacethepint.json file found')
+                    raise ValueError('No local session file (e.g. session-<username>.json or session.json) found')
                 cookies = read_cookies(found)
-                username = data.get('username') or 'jacethepint'
+                m = re.search(r'session-([A-Za-z0-9_.]+)', found.stem)
+                detected_user = m.group(1) if m else ''
+                username = data.get('username') or detected_user or 'instagram_user'
                 config = save_session_cookies(sessions_dir, username, cookies)
             else:
                 config=import_session_data(sessions_dir,data.get('username'),data.get('session_data'))
