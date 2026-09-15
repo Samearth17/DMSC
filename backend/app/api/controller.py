@@ -56,7 +56,7 @@ class Controller:
             if self.running:
                 raise ValueError('An audit is already running')
             p=Profile.parse(self.profile.snapshot())
-            if not any(p.platforms.values()) or not (any(p.active_terms().values()) or any(p.saved_sources.values())):
+            if not any(p.platforms.values()) or not (any(p.active_terms().values()) or any(p.saved_sources.values()) or any(p.platform_queries.values())):
                 raise ValueError('Enable a platform and add values to at least one enabled category')
             if p.platforms['x'] or p.platforms['reddit']:
                 raise ValueError('X and Reddit are deferred; disable them')

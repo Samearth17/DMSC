@@ -624,6 +624,92 @@ input[type=checkbox] {
   margin-top: 10px;
 }
 
+/* Platform Query Cards */
+.pq-card {
+  min-height: auto;
+}
+
+.pq-card header label {
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pq-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 0;
+  align-items: flex-start;
+}
+
+.pq-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--blue-soft);
+  color: var(--blue);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  padding: 5px 8px 5px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  max-width: 100%;
+  transition: var(--transition);
+}
+
+.pq-tag:hover {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.pq-tag > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pq-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--blue);
+  border-radius: 50%;
+  font-size: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: var(--transition);
+}
+
+.pq-tag-remove:hover {
+  background: #dc2626;
+  color: #fff;
+}
+
+.pq-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.pq-input-row input {
+  flex: 1;
+}
+
+.pq-input-row button {
+  flex-shrink: 0;
+}
+
 /* Platform Grid */
 .platform-grid {
   display: grid;

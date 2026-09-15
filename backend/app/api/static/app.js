@@ -295,30 +295,63 @@ function localInput(v) {
 
 function renderPlatformQueries() {
   $('platform-queries').replaceChildren();
+  const platformIcons = { youtube: '📺', instagram: '📷', news: '📰', meta: '👥', web: '🌐' };
   for (const platform of ['youtube', 'instagram', 'news', 'meta', 'web']) {
-    const box = node('div', undefined, 'panel');
-    box.append(node('h3', names[platform] + ' Queries'));
-    for (const value of state.profile.platform_queries?.[platform] || []) {
-      const row = node('div', undefined, 'actions');
-      row.append(node('span', value), action('✕', () => {
-        state.profile.platform_queries[platform] = state.profile.platform_queries[platform].filter(v => v !== value);
-        renderPlatformQueries();
-      }, 'small'));
-      box.append(row);
+    const queries = state.profile.platform_queries?.[platform] || [];
+    const card = node('article', undefined, 'dimension pq-card');
+    const head = node('header');
+    const icon = platformIcons[platform] || '🔍';
+    head.append(node('label', `${icon} ${names[platform]} Queries`, 'check'));
+    card.append(head);
+
+    const tagWrap = node('div', undefined, 'pq-tag-list');
+    if (queries.length === 0) {
+      tagWrap.append(node('p', 'No custom queries yet. Add one below.', 'muted'));
+    } else {
+      for (const value of queries) {
+        const tag = node('span', undefined, 'pq-tag');
+        tag.append(node('span', value));
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'pq-tag-remove';
+        removeBtn.textContent = '✕';
+        removeBtn.title = 'Remove query';
+        removeBtn.addEventListener('click', () => {
+          state.profile.platform_queries[platform] = state.profile.platform_queries[platform].filter(v => v !== value);
+          renderPlatformQueries();
+          notice('Save profile to apply this change.');
+        });
+        tag.append(removeBtn);
+        tagWrap.append(tag);
+      }
     }
+    card.append(tagWrap);
+
+    const count = node('p', `${queries.length} ${queries.length === 1 ? 'query' : 'queries'}`, 'muted');
+    card.append(count);
+
+    const inputRow = node('div', undefined, 'pq-input-row');
     const input = document.createElement('input');
-    input.placeholder = 'e.g. "exact phrase" or keyword';
-    box.append(input, action('+ Add', () => {
+    input.placeholder = `Add ${names[platform].toLowerCase()} query — e.g. "exact phrase" or keyword`;
+    input.maxLength = 500;
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addBtn.click();
+    });
+    const addBtn = action('+ Add', () => {
       const value = input.value.trim();
       if (!value) throw new Error('Enter a query');
       if (!state.profile.platform_queries) state.profile.platform_queries = {};
       state.profile.platform_queries[platform] = [...new Set([...(state.profile.platform_queries[platform] || []), value])];
+      input.value = '';
       renderPlatformQueries();
-      notice('Save profile to keep this change.');
-    }));
-    $('platform-queries').append(box);
+      notice('Query added! Click Save Profile to keep it.');
+    });
+    inputRow.append(input, addBtn);
+    card.append(inputRow);
+
+    $('platform-queries').append(card);
   }
 }
+
 
 function renderSaved() {
   $('saved-sources').replaceChildren();
