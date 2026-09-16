@@ -135,8 +135,10 @@ def handler(controller,token,preview=False):
                     self.send({'error':'Not found'},404)
             except (ValueError,TypeError) as exc:
                 self.send({'error':str(exc)},400)
-            except Exception:
-                self.send({'error':'Could not update local state'},500)
+            except Exception as exc:
+                import traceback
+                traceback.print_exc()
+                self.send({'error': str(exc) or 'Could not update local state'}, 500)
 
         do_PUT=do_POST
 

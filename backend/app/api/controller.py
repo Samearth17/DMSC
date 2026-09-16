@@ -303,8 +303,73 @@ class Controller:
                     return {'status': 'collected', 'text': res['text'], 'analysis': analysis, 'provider': res.get('provider')}
                 return res
             elif url:
-                from app.intelligence.transcription import transcribe_audio
-                return transcribe_audio(url, config=cfg)
+                save_event = bool(data.get('save') or data.get('save_to_watchtower'))
+                from app.intelligence.transcription import transcribe_audio, fetch_single_video_metadata
+                res = transcribe_audio(url, config=cfg)
+                if save_event:
+                    import uuid
+                    from datetime import datetime, timezone
+                    from app.normalization.models import WatchtowerEvent
+                    from app.intelligence.rules import analyze
+
+                    meta = fetch_single_video_metadata(url) or {}
+                    ident = str(meta.get("id") or abs(hash(url)) % 100000000)
+                    extractor = (meta.get("extractor") or "").lower()
+                    platform = "youtube" if "youtube" in extractor or "youtu" in url else "instagram" if "instagram" in extractor or "instagram.com" in url else "video"
+
+                    published = None
+                    if isinstance(meta.get("timestamp"), (int, float)):
+                        try:
+                            published = datetime.fromtimestamp(meta["timestamp"], timezone.utc).isoformat()
+                        except Exception:
+                            pass
+                    elif meta.get("upload_date"):
+                        try:
+                            published = datetime.strptime(meta["upload_date"], "%Y%m%d").replace(tzinfo=timezone.utc).isoformat()
+                        except Exception:
+                            pass
+
+                    transcript_text = res.get('text') if res.get('status') == 'collected' else None
+                    title = meta.get("title") or "Targeted Video Analysis"
+                    desc = meta.get("description") or ""
+
+                    event = WatchtowerEvent(
+                        platform=platform,
+                        source_type="video",
+                        source_id=str(meta.get("uploader_id") or meta.get("channel_id") or ident),
+                        item_id=ident,
+                        url=url,
+                        account=meta.get("uploader") or meta.get("channel") or meta.get("creator"),
+                        content=f"{title}\n{desc}".strip(),
+                        engagement={"views": meta.get("view_count"), "likes": meta.get("like_count")},
+                        published_at=published,
+                        title=title,
+                        author=meta.get("uploader") or meta.get("channel"),
+                        media=[{"type": "video", "id": ident, "thumbnails": meta.get("thumbnails", [])}],
+                        metadata={
+                            "title": title,
+                            "duration": meta.get("duration"),
+                            "collection_scope": "targeted_single_video",
+                            "transcript_status": "collected" if transcript_text else res.get('status', 'not_collected'),
+                            "transcript_text": transcript_text
+                        }
+                    ).validate()
+
+                    analysis = analyze(event, self.profile)
+                    latest_run = repo.db.execute("SELECT id FROM audit_runs ORDER BY started_at DESC LIMIT 1").fetchone()
+                    run_id = latest_run[0] if latest_run else repo.begin(self.profile)
+                    rid, _ = repo.store_raw(run_id, platform, f"direct:{url}", meta)
+                    eid = repo.store_event(run_id, rid, event, analysis)
+
+                    return {
+                        'status': res.get('status', 'collected'),
+                        'text': transcript_text,
+                        'provider': res.get('provider'),
+                        'event_id': eid,
+                        'event': event.to_dict(),
+                        'analysis': analysis
+                    }
+                return res
             else:
                 raise ValueError("Provide event_id or url to transcribe")
 

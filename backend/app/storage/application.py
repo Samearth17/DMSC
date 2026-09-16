@@ -148,27 +148,29 @@ class ApplicationStorage:
 
     def search_records(self, filters):
         # Parameterized run/platform/time SQL first; structured analysis filters next.
-        sql = '''SELECT sr.run_id,e.id,es.normalized,a.result FROM analysis_results a
+        sql = '''SELECT a.run_id, e.id, COALESCE(es.normalized, e.normalized) as normalized, a.result
+          FROM analysis_results a
           JOIN events e ON e.id=a.event_id
-          JOIN event_sources es ON es.record_id=(SELECT s.id FROM source_records s
+          LEFT JOIN source_records sr ON sr.id=(SELECT s.id FROM source_records s
             WHERE s.event_id=e.id AND s.run_id=a.run_id ORDER BY s.collected_at DESC LIMIT 1)
-          JOIN source_records sr ON sr.id=es.record_id WHERE 1=1'''
+          LEFT JOIN event_sources es ON es.record_id=sr.id AND es.event_id=e.id
+          WHERE 1=1'''
         args=[]
-        for key, column in [('run_id','sr.run_id'),('platform','e.platform')]:
+        for key, column in [('run_id','a.run_id'),('platform','e.platform')]:
             if filters.get(key):
                 sql += f' AND {column}=?'
                 args.append(filters[key])
         for key, op in [('start_time','>='),('end_time','<=')]:
             if filters.get(key):
                 from app.config.time_window import instant
-                sql += f" AND julianday(json_extract(es.normalized,'$.published_at')) {op} julianday(?)"
+                sql += f" AND julianday(json_extract(e.normalized,'$.published_at')) {op} julianday(?)"
                 args.append(instant(filters[key]).isoformat())
         try:
             limit=max(1,min(1000,int(filters.get('limit',1000))))
         except (TypeError,ValueError):
             raise ValueError('Search limit must be a number from 1 to 1000') from None
         result=[]
-        for row in self.db.execute(sql+' ORDER BY sr.collected_at DESC',args):
+        for row in self.db.execute(sql+' ORDER BY a.rowid DESC',args):
             e,a=json.loads(row['normalized']),json.loads(row['result'])
             meta = e.get('metadata') if isinstance(e.get('metadata'), dict) else {}
             combined = (e.get('content','')+' '+(e.get('title') or '')+' '+(meta.get('transcript_text') or '')).casefold()

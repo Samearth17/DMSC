@@ -245,13 +245,22 @@ def collect(data):
                         warnings.append('instagram_private_profile_skipped')
                         return {'profile': profile_info, 'records': [], 'warnings': ['This profile is private. Posts cannot be viewed without following.'], 'notes': []}
 
+                    consecutive_old = 0
                     for post in profile_obj.get_posts():
                         pdate = getattr(post, 'date_utc', None)
+                        is_pinned = getattr(post, 'is_pinned', False)
                         if pdate:
                             if until_dt and pdate > until_dt:
                                 continue
                             if since_dt and pdate < since_dt:
-                                break
+                                if is_pinned:
+                                    continue
+                                consecutive_old += 1
+                                if consecutive_old >= 3:
+                                    break
+                                continue
+                            else:
+                                consecutive_old = 0
                         if not append(post):
                             break
                         if len(records) >= limit:

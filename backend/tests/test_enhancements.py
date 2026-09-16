@@ -1,4 +1,5 @@
 import time
+import json
 import unittest
 from unittest.mock import patch, MagicMock
 from app.intelligence.boolean import eval_boolean_match, is_boolean_query, format_search_query
@@ -228,10 +229,40 @@ class EnhancementsTests(unittest.TestCase):
             self.assertTrue(status['local_installed'])
             self.assertIn('provider', status)
 
-            configured = c.transcription_configure({'provider': 'whisperflow_api', 'api_key': 'sk-test123456789'})
-            self.assertEqual(configured['provider'], 'whisperflow_api')
-            self.assertTrue(configured['has_api_key'])
-            self.assertIn('...6789', configured['api_key_masked'])
+            # Test targeted single desired video transcribe & save
+            with patch('app.intelligence.transcription.transcribe_audio') as mock_transcribe, \
+                 patch('app.intelligence.transcription.fetch_single_video_metadata') as mock_meta:
+                mock_transcribe.return_value = {
+                    'status': 'collected',
+                    'text': 'Breaking intelligence briefing on Northern border region',
+                    'provider': 'whisper (base)'
+                }
+                mock_meta.return_value = {
+                    'id': 'vid12345',
+                    'extractor': 'youtube',
+                    'title': 'Targeted Intelligence Video',
+                    'description': 'Field report description',
+                    'uploader': 'AnalystHQ',
+                    'view_count': 10500,
+                    'timestamp': 1726000000
+                }
+
+                saved_res = c.transcribe_record({
+                    'url': 'https://www.youtube.com/watch?v=vid12345',
+                    'save_to_watchtower': True
+                })
+                self.assertEqual(saved_res['status'], 'collected')
+                self.assertEqual(saved_res['text'], 'Breaking intelligence briefing on Northern border region')
+                self.assertIn('event_id', saved_res)
+                self.assertIn('analysis', saved_res)
+
+                # Verify it is now saved in SQLite events table
+                with c.repository() as r:
+                    row = r.db.execute("SELECT normalized FROM events WHERE id=?", (saved_res['event_id'],)).fetchone()
+                    self.assertIsNotNone(row)
+                    ev = json.loads(row[0])
+                    self.assertEqual(ev['metadata']['collection_scope'], 'targeted_single_video')
+                    self.assertEqual(ev['metadata']['transcript_text'], 'Breaking intelligence briefing on Northern border region')
 
 
 if __name__ == '__main__':

@@ -12,9 +12,16 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.request
+import uuid
 from typing import Optional
+
+# Ensure standard Mac Homebrew / Unix binary paths are available for ffmpeg and yt-dlp
+for _bin_path in ("/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", "/usr/bin", "/bin"):
+    if _bin_path not in os.environ.get("PATH", "").split(os.pathsep):
+        os.environ["PATH"] = _bin_path + os.pathsep + os.environ.get("PATH", "")
 
 logger = logging.getLogger("watchtower.transcription")
 
@@ -133,38 +140,62 @@ def _transcribe_via_api(audio_path: str, api_key: str, endpoint: Optional[str] =
         }
 
 
-def download_audio_from_url(url: str, timeout: int = 60) -> Optional[str]:
-    """Download audio stream from a YouTube or video URL using yt-dlp to a temporary file."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".m4a", delete=False)
-    tmp_path = tmp.name
-    tmp.close()
-
-    # Prefer python venv yt-dlp if present
-    ytdlp = shutil.which("yt-dlp") or "./.venv/bin/yt-dlp"
+def fetch_single_video_metadata(url: str, timeout: int = 45) -> Optional[dict]:
+    """Fetch metadata for a single desired video without downloading the media."""
     cmd = [
-        ytdlp,
+        sys.executable, "-m", "yt_dlp",
+        "--dump-single-json",
+        "--skip-download",
         "--no-playlist",
-        "-f", "bestaudio[ext=m4a]/bestaudio/best",
-        "-o", tmp_path,
+        "--quiet",
+        url
+    ]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+        if res.returncode and ("PEM lib" in res.stderr or "CERTIFICATE_VERIFY_FAILED" in res.stderr):
+            retry = cmd[:]
+            retry.insert(3, "--compat-options")
+            retry.insert(4, "no-certifi")
+            res = subprocess.run(retry, capture_output=True, text=True, timeout=timeout, check=False)
+        if res.returncode == 0 and res.stdout.strip():
+            return json.loads(res.stdout)
+    except Exception as exc:
+        logger.warning(f"Metadata fetch failed for {url}: {exc}")
+    return None
+
+
+def download_audio_from_url(url: str, timeout: int = 180) -> Optional[str]:
+    """Download audio stream from a single desired video URL using yt-dlp to a temporary file."""
+    base_name = f"wt_audio_{uuid.uuid4().hex}"
+    out_template = os.path.join(tempfile.gettempdir(), f"{base_name}.%(ext)s")
+
+    cmd = [
+        sys.executable, "-m", "yt_dlp",
+        "--no-playlist",
+        "--force-overwrites",
+        "-f", "bestaudio/best",
+        "-o", out_template,
         url
     ]
 
     try:
-        res = subprocess.run(cmd, capture_output=True, timeout=timeout, check=False)
-        if res.returncode == 0 and os.path.exists(tmp_path) and os.path.getsize(tmp_path) > 1000:
-            return tmp_path
-        # If output was saved with an extension attached by yt-dlp (e.g. .m4a.m4a)
-        for cand in (tmp_path, tmp_path + ".m4a", tmp_path + ".webm"):
-            if os.path.exists(cand) and os.path.getsize(cand) > 1000:
-                return cand
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+        if res.returncode and ("PEM lib" in (res.stderr or "") or "CERTIFICATE_VERIFY_FAILED" in (res.stderr or "")):
+            retry = cmd[:]
+            retry.insert(3, "--compat-options")
+            retry.insert(4, "no-certifi")
+            res = subprocess.run(retry, capture_output=True, text=True, timeout=timeout, check=False)
+
+        # Check for any created audio file matching base_name
+        tmpdir = tempfile.gettempdir()
+        for fname in os.listdir(tmpdir):
+            if fname.startswith(base_name):
+                fpath = os.path.join(tmpdir, fname)
+                if os.path.exists(fpath) and os.path.getsize(fpath) > 1000:
+                    return fpath
     except Exception as exc:
         logger.warning(f"Audio download failed for {url}: {exc}")
 
-    if os.path.exists(tmp_path):
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
     return None
 
 
