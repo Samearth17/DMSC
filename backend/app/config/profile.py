@@ -35,6 +35,8 @@ class Profile:
     time_window: TimeWindow = field(default_factory=TimeWindow)
     saved_sources: dict[str, list[str]] = field(default_factory=dict)
     platform_queries: dict[str, list[str]] = field(default_factory=dict)
+    relevance: dict = field(default_factory=lambda: {'mode': 'all_categories', 'exclude_terms': []})
+    investigation: dict = field(default_factory=dict)
 
     def snapshot(self):
         return asdict(self)
@@ -46,7 +48,7 @@ class Profile:
     def parse(cls, data):
         if not isinstance(data, dict):
             raise ValueError("Profile must be a mapping")
-        unknown = set(data) - {"name", "dimensions", "platforms", "policies", "time_window", "saved_sources", "platform_queries"}
+        unknown = set(data) - {"name", "dimensions", "platforms", "policies", "time_window", "saved_sources", "platform_queries", "relevance", "investigation"}
         if unknown:
             raise ValueError(f"Unknown profile fields: {sorted(unknown)}")
         name = data.get("name", "Local profile")
@@ -126,8 +128,19 @@ class Profile:
                     raise ValueError('Each platform query must be a non-empty string up to 500 chars')
                 clean.append(q.strip())
             platform_queries[plat] = clean
+        relevance = data.get('relevance', {'mode': 'all_categories', 'exclude_terms': []})
+        if not isinstance(relevance, dict) or set(relevance) - {'mode', 'exclude_terms'} or relevance.get('mode', 'all_categories') not in {'all_categories', 'any_category'}:
+            relevance = {'mode': 'all_categories', 'exclude_terms': []}
+        exclusions = relevance.get('exclude_terms', [])
+        if not isinstance(exclusions, list) or len(exclusions) > 100 or any(not isinstance(t, str) or not t.strip() or len(t) > 200 for t in exclusions):
+            exclusions = []
+        investigation = data.get('investigation', {})
+        if investigation:
+            from app.intelligence.related import validate_seed
+            investigation = validate_seed(investigation)
         return cls(name.strip(), dimensions, platforms, policies,
-                   TimeWindow.parse(data.get('time_window', {})), saved, platform_queries)
+                   TimeWindow.parse(data.get('time_window', {})), saved, platform_queries,
+                   {'mode': relevance.get('mode', 'all_categories'), 'exclude_terms': exclusions}, investigation)
 
 
 def load_profile(path):

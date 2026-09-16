@@ -2,6 +2,19 @@ import re
 from app.intelligence.boolean import is_boolean_query, eval_boolean_match
 
 
+def matches_term(term, text):
+    if not term or not text:
+        return False
+    clean = term.strip().strip('"\'').casefold()
+    target = text.casefold()
+    if is_boolean_query(term) or re.search(r'\s+or\s+|\s*\|\s*', term, re.IGNORECASE):
+        return eval_boolean_match(term, target)
+    if ' ' in clean:
+        return clean in target
+    pattern = r"(?<!\w)" + re.escape(clean) + r"(?!\w)"
+    return bool(re.search(pattern, target))
+
+
 def analyze(event, profile):
     content_text = (event.content or "").casefold()
     title_text = (event.title or (event.metadata.get("title") if isinstance(event.metadata, dict) else "") or "").casefold()
@@ -41,7 +54,7 @@ def analyze(event, profile):
     if transcript_text and transcript_status == 'not_configured':
         transcript_status = 'collected'
 
-    return {"version": "lexical-v2", "relevant": bool(matches), "matches": matches,
+    res = {"version": "lexical-v2", "relevant": bool(matches), "matches": matches,
             'relevance_score':round(score,3),'score_meaning':'Weighted coverage of selected categories; not verification',
             'configured_entities':profile.active_terms().get('entities',[]),
             'matched_entities':matches.get('entities',[]),
@@ -56,3 +69,11 @@ def analyze(event, profile):
                                    "confidence": 1.0,
                                    "meaning": "exact text match; not confirmed incident location"}
                                   for name in matches.get("geography", [])]}
+    if getattr(profile, 'investigation', None):
+        from app.intelligence.related import compare_seed
+        related = compare_seed(profile.investigation, combined, event.url)
+        res.update(related=related, relevance_score=related['score'], relevant=related['candidate'])
+        res['decision'] = 'related_candidate' if res['relevant'] else 'not_related'
+        res['reasons'] = related['reasons']
+        res['score_meaning'] = 'Lexical overlap with the seed; candidate relationship requires human review'
+    return res

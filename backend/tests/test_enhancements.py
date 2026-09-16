@@ -297,6 +297,55 @@ class EnhancementsTests(unittest.TestCase):
             self.assertTrue(saved['dimensions']['keywords']['enabled'])
             self.assertIn('secunderabad', c.profile.active_terms()['keywords'])
 
+    def test_related_coverage_and_clear_all_values(self):
+        import tempfile
+        import os
+        from app.api.controller import Controller
+        from app.intelligence.related import suggest_anchors, validate_seed, compare_seed
+
+        # Test anchor suggestion
+        news_text = "Heavy monsoon floods hit northern Telangana region, damaging critical road infrastructure near Hyderabad and Nizamabad highway."
+        anchors = suggest_anchors(news_text)
+        self.assertGreater(len(anchors), 0)
+
+        # Test seed validation
+        seed = validate_seed({
+            'text': news_text,
+            'url': 'https://example.com/news/123',
+            'anchors': ['Telangana', 'Hyderabad', 'floods']
+        })
+        self.assertEqual(len(seed['anchors']), 3)
+
+        # Test seed comparison
+        matching_text = "Rescue teams deployed in Telangana following heavy floods across Hyderabad suburbs."
+        comp = compare_seed(seed, matching_text, 'https://different.com/report/456')
+        self.assertTrue(comp['candidate'])
+        self.assertGreater(comp['score'], 0.6)
+
+        # Test controller related preview & clear_all_values
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, 'test.db')
+            c = Controller(db_path, {})
+            preview = c.related_preview({
+                'seed': {
+                    'text': news_text,
+                    'anchors': ['Telangana', 'floods']
+                },
+                'platforms': {'news': True, 'web': True}
+            })
+            self.assertIn('queries', preview)
+            self.assertIn('news', preview['queries'])
+
+            # Test clear_all_values
+            c.save_profile({
+                'name': 'Test',
+                'dimensions': {'keywords': {'enabled': True, 'values': ['abc', 'def']}},
+                'platforms': {'news': True}
+            })
+            self.assertEqual(len(c.profile.dimensions['keywords'].values), 2)
+            c.clear_all_values()
+            self.assertEqual(len(c.profile.dimensions['keywords'].values), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

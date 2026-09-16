@@ -12,6 +12,7 @@ const names = {
 const views = {
   dashboard: 'Dashboard',
   instagram: 'Instagram Scraper',
+  related: 'Find Related Coverage',
   profile: 'Setup Profile',
   run: 'Start Audit',
   history: 'Past Audits',
@@ -152,7 +153,47 @@ const templates = {
 
   instagram: `<div id="ig-session-bar" class="ig-status-bar disconnected"><div class="ig-status-pill"><span class="ig-status-dot"></span><span id="ig-session-text">Session Required</span></div><div class="actions"><button id="ig-test-btn">Test Connection</button><button id="ig-toggle-setup">Setup / Change Session</button></div></div><div id="ig-quick-connect" class="ig-quick-card" hidden><div><p><strong>Local Session File Detected!</strong> We found <code id="ig-quick-filename">session file</code> on your machine.</p><p class="muted">You can connect to Instagram with 1-click without copying cookies or terminal commands.</p></div><button id="ig-quick-btn" class="primary">Connect Local Session</button></div><div id="ig-setup-panel" class="panel" hidden><h2>Instagram Connection Setup</h2><p>Connect your Instagram account using browser cookies. No terminal commands or password storage; cookies remain strictly on this computer.</p><details class="ig-guide"><summary>📖 How to get your cookies in 30 seconds (Click to expand)</summary><ol><li>Open <a href="https://www.instagram.com" target="_blank" rel="noopener">instagram.com</a> and log into your account.</li><li>Press <strong>F12</strong> (or Right-click &rarr; <strong>Inspect</strong>).</li><li>Go to <strong>Application</strong> (or <strong>Storage</strong> in Firefox) &rarr; <strong>Cookies</strong> &rarr; <code>https://www.instagram.com</code>.</li><li>Copy the value of <strong>sessionid</strong> and <strong>csrftoken</strong> and paste them below!</li></ol></details><div class="limit-grid" style="margin-top:14px"><label>Instagram Username<input id="ig-auth-user" placeholder="e.g. jacethepint" autocomplete="off"></label><label>sessionid Cookie<input id="ig-auth-sessionid" type="password" placeholder="Paste sessionid value"></label><label>csrftoken Cookie<input id="ig-auth-csrftoken" type="password" placeholder="Paste csrftoken value"></label></div><div class="actions" style="margin-top:14px"><button id="ig-save-cookies" class="primary">Save & Connect</button><button id="ig-show-file-upload">Or Upload Session File</button></div><div id="ig-file-upload-box" class="actions" style="margin-top:10px" hidden><input id="ig-file-input" type="file" accept=".json"><button id="ig-upload-btn">Upload & Connect</button></div></div><div class="panel"><div class="ig-tabs"><button id="tab-ig-profile" class="ig-tab active">👤 Profile Posts</button><button id="tab-ig-hashtag" class="ig-tab"># Hashtag Feed</button><button id="tab-ig-discover" class="ig-tab">🔍 Discover Accounts</button></div><div id="ig-mode-profile"><div class="limit-grid"><label style="grid-column:span 2">Instagram Username<input id="ig-target-user" placeholder="e.g. indianarmy.adgpi, defence_mania"></label><label>Post Limit<select id="ig-target-limit"><option value="5">5 posts</option><option value="10" selected>10 posts</option><option value="20">20 posts</option><option value="50">50 posts</option></select></label><label>Timeline / Period<select id="ig-target-time"><option value="all" selected>All recent (by limit)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="custom">Custom date range</option></select></label></div><div id="ig-target-custom" class="limit-grid" style="margin-top:10px" hidden><label>From Date<input id="ig-target-since" type="datetime-local"></label><label>To Date<input id="ig-target-until" type="datetime-local"></label></div><div class="ig-chips"><span class="muted" style="font-size:12px;align-self:center">Try:</span><span class="ig-chip" data-chip="indianarmy.adgpi">@indianarmy.adgpi</span><span class="ig-chip" data-chip="defence_academy_dharmshala_">@defence_academy_dharmshala_</span><span class="ig-chip" data-chip="defence_mania">@defence_mania</span></div><div class="actions" style="margin-top:16px"><button id="ig-scrape-btn" class="primary">Scrape Profile Posts</button></div></div><div id="ig-mode-hashtag" hidden><div class="limit-grid"><label style="grid-column:span 2">Hashtag Name<input id="ig-target-tag" placeholder="e.g. indianarmy, defence"></label><label>Post Limit<select id="ig-tag-limit"><option value="5">5 posts</option><option value="10" selected>10 posts</option><option value="20">20 posts</option><option value="50">50 posts</option></select></label><label>Timeline / Period<select id="ig-tag-time"><option value="all" selected>All recent (by limit)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="custom">Custom date range</option></select></label></div><div id="ig-tag-custom" class="limit-grid" style="margin-top:10px" hidden><label>From Date<input id="ig-tag-since" type="datetime-local"></label><label>To Date<input id="ig-tag-until" type="datetime-local"></label></div><div class="ig-chips"><span class="muted" style="font-size:12px;align-self:center">Try:</span><span class="ig-chip-tag" data-chip="indianarmy">#indianarmy</span><span class="ig-chip-tag" data-chip="defence">#defence</span><span class="ig-chip-tag" data-chip="indianairforce">#indianairforce</span></div><div class="actions" style="margin-top:16px"><button id="ig-scrape-tag-btn" class="primary">Scrape Hashtag</button></div></div><div id="ig-mode-discover" hidden><div class="limit-grid"><label>Search Keyword<input id="ig-disc-term" placeholder="e.g. defence, army, airforce"></label><label>Min Followers<input id="ig-disc-min" type="number" min="0" placeholder="Optional"></label><label>Max Followers<input id="ig-disc-max" type="number" min="0" placeholder="Optional"></label></div><div class="actions" style="margin-top:16px"><button id="ig-discover-btn" class="primary">Search Accounts</button></div><div id="ig-discover-results" style="margin-top:18px"></div></div></div><div id="ig-scrape-loading" class="ig-loader" hidden><div class="ig-spinner"></div><span id="ig-scrape-status-text">Fetching data from Instagram...</span></div><div id="ig-profile-card"></div><div id="ig-results-toolbar" class="actions" style="justify-content:space-between;margin:18px 0 12px" hidden><h3 id="ig-results-title">Scraped Posts (0)</h3><div class="actions"><button id="ig-export-json">Export JSON</button><button id="ig-export-csv">Export CSV</button><button id="ig-add-source" class="primary">+ Add to Monitored Sources</button></div></div><div id="ig-posts-container" class="ig-posts-grid"></div>`,
 
-  profile: '<div class="section-heading"><p>Set up your monitoring profile — add keywords, enable platforms, and save.</p><button id="save-profile" class="primary">💾 Save Profile</button></div><label class="name-field">Profile name<input id="profile-name" maxlength="120" placeholder="e.g. Kashmir Intel Monitor"></label><div id="dimensions" class="dimension-grid"></div><h2>Platforms to Monitor</h2><div id="platform-select" class="platform-grid"></div><div class="panel"><h2>Platform Specific Queries</h2><p>Override global dimensions for specific platforms. These take priority.</p><div id="platform-queries"></div></div><div class="panel"><h2>Saved Accounts & Feeds</h2><p>Add Instagram accounts or RSS news feeds to monitor directly.</p><div id="saved-sources"></div></div>',
+  related: `<div class="panel">
+    <h2>📰 Find Related News Coverage</h2>
+    <p>Upload a news article or paste news text/URL to discover coverage across all platforms (News, YouTube, Web, Instagram, Facebook/Meta). Watchtower conjoins your distinguishing anchor terms to scrape and calculate coverage similarity.</p>
+    <div class="limit-grid">
+      <label style="grid-column:span 2">Upload News Text File (.txt or .md)
+        <input id="related-file" type="file" accept=".txt,.md,text/plain,text/markdown">
+      </label>
+      <label style="grid-column:span 2">Or Paste News / Article Text (20–20,000 characters)
+        <textarea id="related-text" rows="6" maxlength="20000" placeholder="Paste the news story, article body, or incident report here..."></textarea>
+      </label>
+      <label style="grid-column:span 2">Original News / Story URL (Optional)
+        <input id="related-url" type="url" placeholder="https://example.com/news-story-url">
+      </label>
+    </div>
+    <div style="margin:12px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <label style="margin:0"><strong>Required Anchor Terms (2–8 terms, one per line)</strong></label>
+        <button id="related-suggest-btn" type="button" class="small">⚡ Auto-Suggest Anchors</button>
+      </div>
+      <p class="muted" style="margin:0 0 8px;font-size:12px">Key distinguishing names, places, and incident terms. All anchors will be matched to eliminate false positives.</p>
+      <textarea id="related-anchors" rows="4" placeholder="Example:&#10;Secunderabad&#10;Defence Cantonment&#10;Bolarum"></textarea>
+    </div>
+    <h3>Platforms to Scrape</h3>
+    <div id="related-platforms" class="platform-grid"></div>
+    <label style="margin-top:12px;max-width:320px">Coverage Time Window
+      <select id="related-hours">
+        <option value="24" selected>Last 24 hours</option>
+        <option value="48">Last 48 hours</option>
+        <option value="168">Last 7 days</option>
+        <option value="720">Last 30 days</option>
+      </select>
+    </label>
+    <div class="actions" style="margin-top:16px">
+      <button id="related-preview">👁️ Preview Queries</button>
+      <button id="related-run" class="primary">🚀 Scrape & Find Related Coverage</button>
+    </div>
+    <div id="related-preview-result" style="margin-top:14px"></div>
+  </div>
+  <div id="related-results" style="margin-top:18px"></div>`,
+
+  profile: '<div class="section-heading"><p>Set up your monitoring profile — add keywords, enable platforms, and save.</p><div class="actions" style="gap:8px"><button id="clear-all-values-btn" class="small" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">🗑️ Clear All Saved Queries</button><button id="save-profile" class="primary">💾 Save Profile</button></div></div><label class="name-field">Profile name<input id="profile-name" maxlength="120" placeholder="e.g. Kashmir Intel Monitor"></label><div id="dimensions" class="dimension-grid"></div><h2>Platforms to Monitor</h2><div id="platform-select" class="platform-grid"></div><div class="panel"><h2>Platform Specific Queries</h2><p>Override global dimensions for specific platforms. These take priority.</p><div id="platform-queries"></div></div><div class="panel"><h2>Saved Accounts & Feeds</h2><p>Add Instagram accounts or RSS news feeds to monitor directly.</p><div id="saved-sources"></div></div>',
 
   run: '<div class="panel"><h2>🚀 Start New Audit</h2><p id="run-summary"></p><p>All enabled platforms will be scanned simultaneously. Results appear in real-time.</p><div class="limit-grid"><label>Time window<select id="window-hours"><option value="1">Last 1 hour</option><option value="6">Last 6 hours</option><option value="12">Last 12 hours</option><option value="24" selected>Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="custom">Custom range</option></select></label><label>Timezone<input id="window-zone" value="Asia/Kolkata" readonly></label></div><div id="custom-window" class="limit-grid" hidden><label>From<input id="window-start" type="datetime-local"></label><label>To<input id="window-end" type="datetime-local"></label></div><div class="actions"><button id="preview-plan">👁️ Preview Queries</button><button id="run-audit" class="primary">▶️ Run Audit Now</button></div><div id="query-plan"></div></div><div id="live-report"></div>',
 
@@ -188,6 +229,7 @@ async function navigate(view) {
   for (const s of document.querySelectorAll('.view')) s.hidden = s.id !== 'view-' + view;
   for (const b of document.querySelectorAll('.nav')) b.classList.toggle('active', b.dataset.view === view);
   $('view-title').textContent = views[view];
+  if (view === 'related') renderRelatedPlatforms();
   if (view === 'instagram') await initInstagramView();
   if (view === 'history') await history();
   if (view === 'records') await search();
@@ -611,6 +653,185 @@ bind('run-audit', async () => {
   await poll();
 });
 
+/* ── Related Coverage Search ── */
+function renderRelatedPlatforms() {
+  const box = $('related-platforms');
+  if (!box || box.childElementCount) return;
+  for (const p of ['news', 'youtube', 'web', 'meta', 'instagram']) {
+    const label = node('label', names[p], 'check'), input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = p;
+    input.checked = ['news', 'web', 'youtube'].includes(p);
+    label.prepend(input);
+    box.append(label);
+  }
+}
+
+function relatedPayload() {
+  const platforms = {};
+  if ($('related-platforms')) {
+    $('related-platforms').querySelectorAll('input').forEach(i => { platforms[i.value] = i.checked; });
+  }
+  const text = $('related-text') ? $('related-text').value.trim() : '';
+  const url = $('related-url') ? $('related-url').value.trim() : '';
+  const anchors = $('related-anchors') ? $('related-anchors').value.split('\n').map(t => t.trim()).filter(Boolean) : [];
+  return {
+    seed: { text, url, anchors },
+    platforms,
+    time_window: { hours: Number($('related-hours')?.value || 24), timezone: 'Asia/Kolkata' }
+  };
+}
+
+bind('clear-all-values-btn', async () => {
+  if (!confirm('Are you sure you want to clear all saved keywords, hashtags, and values? This will give you a fresh, blank profile.')) return;
+  await api('/api/values/clear-all', {}, 'POST');
+  state.profile = await api('/api/profile');
+  state.values = {
+    geography: await api('/api/values/geography'),
+    entities: await api('/api/values/entities'),
+    keywords: await api('/api/values/keywords'),
+    hashtags: await api('/api/values/hashtags'),
+    incident_types: await api('/api/values/incident_types')
+  };
+  renderProfile();
+  notice('✅ All saved queries cleared! You now have a fresh, blank profile.');
+});
+
+bind('related-suggest-btn', async () => {
+  const text = $('related-text').value.trim();
+  if (!text || text.length < 20) {
+    notice('⚠️ Please paste or upload at least 20 characters of news text first to suggest anchors.');
+    return;
+  }
+  try {
+    const res = await api('/api/related/suggest-anchors', { text });
+    if (res.anchors && res.anchors.length) {
+      $('related-anchors').value = res.anchors.slice(0, 6).join('\n');
+      notice(`✅ Auto-suggested ${res.anchors.length} anchor terms from the news text!`);
+    } else {
+      notice('Could not extract distinguishing anchors. Please type 2-8 anchor terms manually.');
+    }
+  } catch (e) {
+    notice('Error suggesting anchors: ' + e.message);
+  }
+});
+
+bind('related-preview', async () => {
+  const payload = relatedPayload();
+  if (!payload.seed.text || payload.seed.text.length < 20) {
+    notice('⚠️ Paste or upload at least 20 characters of news text.');
+    return;
+  }
+  if (payload.seed.anchors.length < 2) {
+    notice('⚠️ Enter at least 2 distinguishing anchor terms (names, places, incident).');
+    return;
+  }
+  try {
+    const result = await api('/api/related/preview', payload);
+    const box = $('related-preview-result');
+    box.replaceChildren(node('p', result.scope, 'muted'));
+    let count = 0;
+    Object.entries(result.queries || {}).forEach(([p, queries]) => {
+      if (queries.length) {
+        count += queries.length;
+        box.append(node('h4', `${names[p] || p} (${queries.length} queries)`), ...queries.map(q => node('p', `🔎 ${q.text}`)));
+      }
+    });
+    if (count === 0) {
+      box.append(node('p', 'No queries generated. Please select at least one platform.'));
+    }
+  } catch (e) {
+    notice(e.message);
+  }
+});
+
+bind('related-run', async () => {
+  const payload = relatedPayload();
+  if (!payload.seed.text || payload.seed.text.length < 20) {
+    notice('⚠️ Paste or upload at least 20 characters of news text.');
+    return;
+  }
+  if (payload.seed.anchors.length < 2) {
+    notice('⚠️ Enter at least 2 distinguishing anchor terms (names, places, incident).');
+    return;
+  }
+  try {
+    const result = await api('/api/related/run', payload);
+    state.selectedRun = result.run_id;
+    $('related-results').replaceChildren();
+    const loadingCard = node('div', undefined, 'panel');
+    loadingCard.innerHTML = '<h3>⏳ Scraping all platforms for related coverage...</h3><p class="muted">Scanning News, YouTube, Web, and social sources for matching anchor terms...</p>';
+    $('related-results').append(loadingCard);
+    notice('🚀 Related coverage search started! Scraping platforms now...');
+
+    const pollRelated = async () => {
+      if (!document.contains($('related-results'))) return;
+      try {
+        const report = await api('/api/audits/' + result.run_id);
+        const box = $('related-results');
+        box.replaceChildren(
+          node('h2', 'Related Coverage Results'),
+          pill(report.status),
+          table(Object.entries(report.platforms).map(([p, a]) => [names[p] || p, `${a.status} · ${a.metrics.items_checked} scanned · ${a.metrics.relevant_items} matched`]))
+        );
+        if (report.status === 'running') {
+          setTimeout(pollRelated, 2000);
+          return;
+        }
+        const records = await api('/api/records?run_id=' + encodeURIComponent(result.run_id));
+        const relevant = records.filter(i => i.analysis.relevant).sort((a, b) => (b.analysis.relevance_score || 0) - (a.analysis.relevance_score || 0));
+        box.append(node('p', `🎯 Found ${relevant.length} related candidates (${records.length - relevant.length} records filtered out).`));
+        if (relevant.length === 0) {
+          box.append(node('p', 'No related candidates found matching all anchors across selected platforms.', 'muted'));
+        } else {
+          relevant.forEach(i => box.append(recordCard(i)));
+        }
+        if (records.length > relevant.length) {
+          const det = node('details');
+          det.style.marginTop = '14px';
+          det.append(node('summary', `Filtered records (${records.length - relevant.length}) — Click to expand`));
+          records.filter(i => !i.analysis.relevant).forEach(i => det.append(recordCard(i)));
+          box.append(det);
+        }
+      } catch (e) {
+        notice(e.message);
+      }
+    };
+    pollRelated();
+  } catch (e) {
+    notice(e.message);
+  }
+});
+
+// File upload for related news
+setTimeout(() => {
+  const fileInput = $('related-file');
+  if (fileInput) {
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      if (file.size > 80000 || !/\.(txt|md)$/i.test(file.name)) {
+        notice('Upload a UTF-8 .txt or .md file up to 80 KB.');
+        return;
+      }
+      const text = (await file.text()).slice(0, 20000);
+      $('related-text').value = text;
+      try {
+        const res = await api('/api/related/suggest-anchors', { text });
+        if (res.anchors && res.anchors.length) {
+          $('related-anchors').value = res.anchors.slice(0, 6).join('\n');
+          notice(`✅ Loaded "${file.name}" and auto-suggested ${res.anchors.length} anchors!`);
+        } else {
+          notice(`✅ Loaded "${file.name}". Please enter 2-8 anchor terms below.`);
+        }
+      } catch {
+        notice(`✅ Loaded "${file.name}". Please enter 2-8 anchor terms below.`);
+      }
+    });
+  }
+}, 500);
+
+
 /* ── Dashboard & Reports ── */
 function summaryCard(report) {
   const box = node('div', undefined, 'panel');
@@ -789,6 +1010,13 @@ function recordCard(item) {
   const matchedParts = Object.entries(a.matches || {}).filter(([, v]) => Array.isArray(v) && v.length > 0).map(([k, v]) => `${names[k]}: ${v.join(', ')}`);
   if (matchedParts.length) {
     card.append(node('p', '🎯 Matched: ' + matchedParts.join(' · '), 'muted'));
+  }
+
+  if (a.related) {
+    const relBox = node('div', undefined, 'notice-banner');
+    relBox.style.cssText = 'background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;color:#166534;margin:8px 0;padding:8px 12px;border-radius:6px;font-size:12.5px;';
+    relBox.innerHTML = `<strong>📰 Related Coverage Score: ${a.related.score}</strong> · <em>${a.related.relationship}</em><br>${(a.reasons || []).join(' · ')}`;
+    card.append(relBox);
   }
 
   // Actions row

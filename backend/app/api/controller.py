@@ -55,11 +55,11 @@ class Controller:
             self.profile=p
         return p.snapshot()
 
-    def start(self):
+    def start(self, override=None):
         with self.lock:
             if self.running:
                 raise ValueError('An audit is already running')
-            p=Profile.parse(self.profile.snapshot())
+            p=Profile.parse((override or self.profile).snapshot())
             if not any(p.active_terms().values()):
                 for dim in p.dimensions.values():
                     if dim.values:
@@ -380,4 +380,34 @@ class Controller:
                 return res
             else:
                 raise ValueError("Provide event_id or url to transcribe")
+
+    def related_preview(self, data):
+        from app.intelligence.related import build_profile
+        from app.discovery.queries import plan
+        profile = build_profile(self.profile, data)
+        return {'profile': profile.snapshot(), 'queries': plan(profile),
+                'scope': 'Bounded related-coverage candidates; not an exhaustive internet search',
+                'limitations': {'instagram': 'Only saved profiles and hashtags; keyword caption search unavailable',
+                               'x': 'Deferred', 'reddit': 'Deferred'}}
+
+    def related_start(self, data):
+        from app.intelligence.related import build_profile
+        return self.start(build_profile(self.profile, data))
+
+    def related_suggest_anchors(self, data):
+        from app.intelligence.related import suggest_anchors
+        text = data.get('text', '') if isinstance(data, dict) else ''
+        return {'anchors': suggest_anchors(text)}
+
+    def clear_all_values(self):
+        with self.lock:
+            with self.repository() as repo:
+                repo.db.execute("DELETE FROM monitoring_values")
+                repo.db.commit()
+                for dim in self.profile.dimensions.values():
+                    dim.values = []
+                    dim.enabled = False
+                repo.set_setting('active_profile', self.profile.snapshot())
+        return {'status': 'cleared'}
+
 

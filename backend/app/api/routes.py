@@ -57,9 +57,17 @@ def read(controller, path, query):
 
 
 def write(controller,path,data):
+    if path == '/api/values/clear-all':
+        return controller.clear_all_values()
     if path.startswith('/api/values/'):
         with controller.repository() as repo:
             return repo.add_value(path.rsplit('/',1)[-1].replace('-','_'),data.get('value'))
+    if path == '/api/related/preview':
+        return controller.related_preview(data)
+    if path == '/api/related/run':
+        return controller.related_start(data)
+    if path == '/api/related/suggest-anchors':
+        return controller.related_suggest_anchors(data)
     if path=='/api/instagram/configure':
         return controller.instagram_configure(data)
     if path=='/api/instagram/scrape':
