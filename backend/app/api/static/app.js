@@ -193,7 +193,7 @@ const templates = {
   </div>
   <div id="related-results" style="margin-top:18px"></div>`,
 
-  profile: '<div class="section-heading"><p>Set up your monitoring profile — add keywords, enable platforms, and save.</p><div class="actions" style="gap:8px"><button id="clear-all-values-btn" class="small" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">🗑️ Clear All Saved Queries</button><button id="save-profile" class="primary">💾 Save Profile</button></div></div><label class="name-field">Profile name<input id="profile-name" maxlength="120" placeholder="e.g. Kashmir Intel Monitor"></label><div id="dimensions" class="dimension-grid"></div><h2>Platforms to Monitor</h2><div id="platform-select" class="platform-grid"></div><div class="panel"><h2>Platform Specific Queries</h2><p>Override global dimensions for specific platforms. These take priority.</p><div id="platform-queries"></div></div><div class="panel"><h2>Saved Accounts & Feeds</h2><p>Add Instagram accounts or RSS news feeds to monitor directly.</p><div id="saved-sources"></div></div>',
+  profile: '<div class="section-heading"><p>Set up your monitoring profile — add keywords, enable platforms, and save.</p><div class="actions" style="gap:8px"><button id="clear-all-values-btn" class="small" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">🗑️ Clear All Saved Queries</button><button id="save-profile" class="primary">💾 Save Profile</button></div></div><label class="name-field">Profile name<input id="profile-name" maxlength="120" placeholder="e.g. Kashmir Intel Monitor"></label><div id="dimensions" class="dimension-grid"></div><div class="panel"><h2>🛡️ Topic & Relevance Filtering</h2><p>Control how Watchtower scores intelligence relevance and suppresses non-defense noise (e.g. festivals, shopping, lifestyle).</p><div class="limit-grid"><label style="grid-column:span 2">Relevance Mode<select id="relevance-mode"><option value="defense_focus" selected>🛡️ Defense & Security Focus (Strict defense signals required; suppresses festivals/noise)</option><option value="all_categories">🎯 All Categories Required (AND - requires entity + keyword + location)</option><option value="any_category">🌐 Broad Match (Any matched keyword/hashtag)</option></select></label><label style="grid-column:span 2">Exclude Noise Terms (Comma separated)<input id="relevance-exclude-terms" placeholder="ganesh, ganpati, visarjan, bonalu, festival, lifestyle, shopping, saree, wedding, vlogs, discounts"></label></div></div><h2>Platforms to Monitor</h2><div id="platform-select" class="platform-grid"></div><div class="panel"><h2>Platform Specific Queries</h2><p>Override global dimensions for specific platforms. These take priority.</p><div id="platform-queries"></div></div><div class="panel"><h2>Saved Accounts & Feeds</h2><p>Add Instagram accounts or RSS news feeds to monitor directly.</p><div id="saved-sources"></div></div>',
 
   run: '<div class="panel"><h2>🚀 Start New Audit</h2><p id="run-summary"></p><p>All enabled platforms will be scanned simultaneously. Results appear in real-time.</p><div class="limit-grid"><label>Time window<select id="window-hours"><option value="1">Last 1 hour</option><option value="6">Last 6 hours</option><option value="12">Last 12 hours</option><option value="24" selected>Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="custom">Custom range</option></select></label><label>Timezone<input id="window-zone" value="Asia/Kolkata" readonly></label></div><div id="custom-window" class="limit-grid" hidden><label>From<input id="window-start" type="datetime-local"></label><label>To<input id="window-end" type="datetime-local"></label></div><div class="actions"><button id="preview-plan">👁️ Preview Queries</button><button id="run-audit" class="primary">▶️ Run Audit Now</button></div><div id="query-plan"></div></div><div id="live-report"></div>',
 
@@ -429,6 +429,9 @@ function renderProfile() {
   $('custom-window').hidden = w.hours !== null;
   if (w.start_time) $('window-start').value = localInput(w.start_time);
   if (w.end_time) $('window-end').value = localInput(w.end_time);
+  const rel = p.relevance || { mode: 'defense_focus', exclude_terms: [] };
+  if ($('relevance-mode')) $('relevance-mode').value = rel.mode || 'defense_focus';
+  if ($('relevance-exclude-terms')) $('relevance-exclude-terms').value = (rel.exclude_terms || []).join(', ');
   runSummary();
 }
 
@@ -568,6 +571,11 @@ function collectProfile() {
     p.time_window.end_time = end.toISOString();
   }
   p.platform_queries = state.profile.platform_queries || {};
+  const relMode = $('relevance-mode') ? $('relevance-mode').value : 'defense_focus';
+  const relExcludes = $('relevance-exclude-terms') && $('relevance-exclude-terms').value
+    ? $('relevance-exclude-terms').value.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+  p.relevance = { mode: relMode, exclude_terms: relExcludes };
   return p;
 }
 

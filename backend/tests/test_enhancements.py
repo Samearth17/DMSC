@@ -347,5 +347,21 @@ class EnhancementsTests(unittest.TestCase):
             self.assertEqual(len(c.profile.dimensions['keywords'].values), 0)
 
 
+            # Test analyze with profile.investigation
+            from app.normalization.models import WatchtowerEvent
+            from app.intelligence.rules import analyze
+            c.profile.investigation = seed
+            test_ev = WatchtowerEvent(
+                platform='news', source_type='test', source_id='s-1', item_id='item-1',
+                account='LocalDesk', title='Floods hit Telangana',
+                content='Heavy floods submerge Telangana low-lying zones in Hyderabad.',
+                url='https://example2.com/news/789'
+            )
+            ev_analysis = analyze(test_ev, c.profile)
+            self.assertTrue(ev_analysis['relevant'])
+            self.assertEqual(ev_analysis['decision'], 'related_candidate')
+
+
 if __name__ == '__main__':
     unittest.main()
+
