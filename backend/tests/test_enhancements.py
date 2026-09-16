@@ -264,6 +264,39 @@ class EnhancementsTests(unittest.TestCase):
                     self.assertEqual(ev['metadata']['collection_scope'], 'targeted_single_video')
                     self.assertEqual(ev['metadata']['transcript_text'], 'Breaking intelligence briefing on Northern border region')
 
+    def test_dimension_resilience_and_auto_enable(self):
+        from app.config.profile import Profile
+        from app.discovery.queries import generate
+        # Scenario: user selected keywords in Setup Profile, but enabled was left False
+        raw = {
+            'name': 'Test Profile',
+            'dimensions': {
+                'geography': {'enabled': False, 'values': []},
+                'entities': {'enabled': False, 'values': []},
+                'keywords': {'enabled': False, 'values': ['secunderabad', 'bollaram']},
+                'hashtags': {'enabled': False, 'values': []},
+                'incident_types': {'enabled': False, 'values': []}
+            },
+            'platforms': {'youtube': True, 'instagram': True, 'x': False, 'reddit': False, 'meta': False, 'news': False, 'web': False}
+        }
+        p = Profile.parse(raw)
+        # queries.generate should fall back to dimensions with values rather than returning []
+        queries = generate(p, 'youtube')
+        self.assertGreater(len(queries), 0)
+        self.assertEqual(queries[0].dimension, 'keywords')
+
+        # Controller auto-heal test
+        import tempfile
+        from app.api.controller import Controller
+        with tempfile.TemporaryDirectory() as tmpdir:
+            import os
+            db_path = os.path.join(tmpdir, 'test.db')
+            c = Controller(db_path, {})
+            saved = c.save_profile(raw)
+            # Should have auto-healed keywords.enabled to True
+            self.assertTrue(saved['dimensions']['keywords']['enabled'])
+            self.assertIn('secunderabad', c.profile.active_terms()['keywords'])
+
 
 if __name__ == '__main__':
     unittest.main()

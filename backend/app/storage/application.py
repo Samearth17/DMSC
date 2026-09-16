@@ -34,8 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_normalized_item ON events(platform,item_id);
 CREATE INDEX IF NOT EXISTS idx_normalized_published ON events(json_extract(normalized,'$.published_at'));
 CREATE INDEX IF NOT EXISTS idx_normalized_source ON events(json_extract(normalized,'$.source_id'));
 CREATE INDEX IF NOT EXISTS idx_normalized_url ON events(json_extract(normalized,'$.url'));
-DELETE FROM schema_version;
-INSERT INTO schema_version VALUES (2);
+INSERT OR REPLACE INTO schema_version (version) VALUES (2);
 '''
 
 

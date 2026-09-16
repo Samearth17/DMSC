@@ -37,6 +37,9 @@ def generate(profile: Profile, platform: str) -> list[Query]:
     # Then fill remaining slots from global dimensions
     groups = sorted(((k, d) for k, d in profile.dimensions.items() if d.enabled and d.values),
                     key=lambda pair: -pair[1].priority)
+    if not groups:
+        groups = sorted(((k, d) for k, d in profile.dimensions.items() if d.values),
+                        key=lambda pair: -pair[1].priority)
     index = 0
     while groups and len(queries) < limit:
         added = False

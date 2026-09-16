@@ -198,18 +198,54 @@ async function navigate(view) {
   if (view === 'run') runSummary();
 }
 
+const dimIcons = {
+  geography: '📍',
+  entities: '🏢',
+  keywords: '🏷️',
+  hashtags: '#️⃣',
+  incident_types: '⚠️'
+};
+
 /* ── Profile Management ── */
 function renderDimension(category) {
-  const d = state.profile.dimensions[category],
-        card = node('article', undefined, 'dimension'),
+  const d = state.profile.dimensions[category];
+  // Auto-enable if dimension has active values configured
+  if (d.values && d.values.length > 0 && !d.enabled) {
+    d.enabled = true;
+  }
+  const card = node('article', undefined, 'dimension'),
         head = node('header'),
-        label = node('label', names[category], 'check'),
+        label = node('label', `${dimIcons[category] || '📁'} ${names[category]}`, 'check'),
         enabled = document.createElement('input');
   enabled.type = 'checkbox';
   enabled.checked = d.enabled;
-  enabled.addEventListener('change', () => { d.enabled = enabled.checked; notice('Changes not saved yet — click Save Profile.'); });
   label.prepend(enabled);
-  head.append(label);
+
+  const statusBadge = node('span', '', 'dim-status-badge');
+  function updateBadge() {
+    if (d.enabled && d.values.length > 0) {
+      statusBadge.className = 'dim-status-badge dim-badge-active';
+      statusBadge.textContent = `● Active (${d.values.length})`;
+      card.classList.remove('dim-disabled');
+    } else if (!d.enabled && d.values.length > 0) {
+      statusBadge.className = 'dim-status-badge dim-badge-disabled';
+      statusBadge.textContent = `○ Paused (${d.values.length})`;
+      card.classList.add('dim-disabled');
+    } else {
+      statusBadge.className = 'dim-status-badge dim-badge-empty';
+      statusBadge.textContent = `○ 0 active`;
+      card.classList.remove('dim-disabled');
+    }
+  }
+  updateBadge();
+
+  enabled.addEventListener('change', () => {
+    d.enabled = enabled.checked;
+    updateBadge();
+    draw();
+    notice('Changes not saved yet — click Save Profile.');
+  });
+  head.append(label, statusBadge);
   card.append(head);
 
   const filter = document.createElement('input');
@@ -217,31 +253,87 @@ function renderDimension(category) {
   filter.placeholder = 'Filter ' + names[category].toLowerCase() + '…';
   card.append(filter);
 
-  const list = node('div', undefined, 'value-list'), count = node('p', '', 'muted');
+  const list = node('div', undefined, 'value-list'), count = node('span', '', 'muted');
+
+  const toolbar = node('div', undefined, 'value-toolbar');
+  toolbar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin:6px 0 8px;font-size:12px;';
+  const selAll = node('button', 'Select All', 'small');
+  selAll.type = 'button';
+  selAll.onclick = () => {
+    d.values = state.values[category].map(v => v.value);
+    if (d.values.length > 0) {
+      d.enabled = true;
+      enabled.checked = true;
+    }
+    updateBadge();
+    draw();
+    notice('All selected! Click "💾 Save Profile" to apply.');
+  };
+  const clearAll = node('button', 'Clear All', 'small');
+  clearAll.type = 'button';
+  clearAll.onclick = () => {
+    d.values = [];
+    updateBadge();
+    draw();
+    notice('Cleared all! Click "💾 Save Profile" to apply.');
+  };
+  const toolsRight = node('div', undefined, 'actions');
+  toolsRight.style.gap = '6px';
+  toolsRight.append(selAll, clearAll);
+  toolbar.append(count, toolsRight);
 
   function draw() {
     list.replaceChildren();
+    if (!d.enabled && d.values.length > 0) {
+      const pausedNotice = node('div', undefined, 'dim-paused-banner');
+      const pText = node('span');
+      pText.innerHTML = `⚠️ <strong>${names[category]} is paused.</strong> Category is unchecked in header.`;
+      const activateBtn = node('button', '▶️ Activate This Category', 'small');
+      activateBtn.type = 'button';
+      activateBtn.style.cssText = 'align-self:flex-start;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;padding:4px 8px;font-weight:600;margin-top:4px;';
+      activateBtn.onclick = () => {
+        d.enabled = true;
+        enabled.checked = true;
+        updateBadge();
+        draw();
+        notice(`✅ ${names[category]} activated! Click "💾 Save Profile" to save.`);
+      };
+      pausedNotice.append(pText, activateBtn);
+      list.append(pausedNotice);
+    }
     for (const value of state.values[category].filter(v => v.value.toLowerCase().includes(filter.value.toLowerCase()))) {
       const row = node('div', undefined, 'value-row'),
             l = node('label', value.value, 'check'),
             check = document.createElement('input');
       check.type = 'checkbox';
       check.checked = d.values.includes(value.value);
+      if (check.checked) {
+        row.style.background = '#f0fdf4';
+      }
       check.addEventListener('change', () => {
-        d.values = check.checked ? [...new Set([...d.values, value.value])] : d.values.filter(v => v !== value.value);
-        count.textContent = `${d.values.length} selected`;
+        if (check.checked) {
+          d.values = [...new Set([...d.values, value.value])];
+          // Auto-enable category when user activates an item
+          d.enabled = true;
+          enabled.checked = true;
+        } else {
+          d.values = d.values.filter(v => v !== value.value);
+        }
+        updateBadge();
+        draw();
       });
       l.prepend(check);
       row.append(l, action('Remove', async () => {
         await api(`/api/values/${category}/${value.id}`, undefined, 'DELETE');
         d.values = d.values.filter(v => v !== value.value);
         state.values[category] = await api('/api/values/' + category);
+        updateBadge();
         draw();
       }, 'small'));
       list.append(row);
     }
     if (!list.children.length) list.append(node('p', 'No values yet. Add one below.', 'muted'));
-    count.textContent = `${d.values.length} selected`;
+    count.textContent = `${d.values.length} of ${state.values[category].length} active`;
   }
   filter.addEventListener('input', draw);
   draw();
@@ -249,13 +341,23 @@ function renderDimension(category) {
   const add = document.createElement('input');
   add.placeholder = 'Add new ' + names[category].toLowerCase() + '…';
   add.maxLength = 200;
-  card.append(list, count, add, action('+ Add', async () => {
-    await api('/api/values/' + category, { value: add.value });
+  add.addEventListener('keydown', e => {
+    if (e.key === 'Enter') addAction.click();
+  });
+  const addAction = action('+ Add', async () => {
+    const val = add.value.trim();
+    if (!val) return;
+    await api('/api/values/' + category, { value: val });
     state.values[category] = await api('/api/values/' + category);
+    if (!d.values.includes(val)) d.values.push(val);
+    d.enabled = true;
+    enabled.checked = true;
     add.value = '';
+    updateBadge();
     draw();
-    notice('Value added! Select it and save your profile to use it.');
-  }));
+    notice(`✅ Added and selected "${val}". Click "💾 Save Profile" to save your profile.`);
+  });
+  card.append(toolbar, list, add, addAction);
   return card;
 }
 
@@ -406,6 +508,15 @@ function renderSettingsPolicies() {
 function collectProfile() {
   const p = structuredClone(state.profile);
   p.name = $('profile-name').value;
+  // Resilience: ensure any dimension that has active values is enabled if nothing is enabled
+  const anyActive = Object.values(p.dimensions).some(d => d.enabled && d.values && d.values.length > 0);
+  if (!anyActive) {
+    for (const d of Object.values(p.dimensions)) {
+      if (d.values && d.values.length > 0) {
+        d.enabled = true;
+      }
+    }
+  }
   const h = $('window-hours').value;
   p.time_window = { hours: h === 'custom' ? null : Number(h), timezone: 'Asia/Kolkata' };
   if (h === 'custom') {
@@ -475,7 +586,15 @@ bind('preview-plan', async () => {
     container.append(details(`${names[p]} — ${queries.length} queries`, list));
   }
   if (totalQueries === 0) {
-    container.append(node('p', 'No queries generated. Add keywords, platform queries, or saved sources in Setup Profile.', 'muted'));
+    const emptyBox = node('div', undefined, 'empty-plan-notice');
+    emptyBox.style.cssText = 'padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin:8px 0;display:flex;align-items:center;justify-content:space-between;gap:12px;';
+    const msg = node('p', '⚠️ No queries generated. Please ensure at least one platform and category (e.g. Keywords) has active values in Setup Profile.');
+    msg.style.cssText = 'margin:0;color:#92400e;font-size:13px;';
+    const goBtn = node('button', '⚙️ Setup Profile', 'small primary');
+    goBtn.type = 'button';
+    goBtn.onclick = () => navigate('profile');
+    emptyBox.append(msg, goBtn);
+    container.append(emptyBox);
   }
   planQueriesOpen = true;
   btn.textContent = '🙈 Hide Queries';
@@ -585,10 +704,31 @@ async function platformReport(runId, platform) {
   );
   box.append(exportRow);
 
-  box.append(node('h3', 'Top Relevant Records'));
-  const recordsGrid = node('div', undefined, 'dimension-grid');
-  renderRecords(recordsGrid, a.records, true);
-  box.append(recordsGrid);
+  const relevant = (a.records || []).filter(r => r.analysis?.relevant);
+  const filteredOut = (a.records || []).filter(r => !r.analysis?.relevant);
+
+  if (relevant.length > 0) {
+    box.append(node('h3', `🎯 Relevant Records (${relevant.length})`));
+    const recordsGrid = node('div', undefined, 'dimension-grid');
+    renderRecords(recordsGrid, relevant, true);
+    box.append(recordsGrid);
+  } else {
+    box.append(empty('No records met your relevance criteria in this time window.'));
+  }
+
+  if (filteredOut.length > 0) {
+    const details = document.createElement('details');
+    details.style.cssText = 'margin-top:20px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;';
+    const summary = document.createElement('summary');
+    summary.style.cssText = 'cursor:pointer;font-weight:600;color:#475569;';
+    summary.textContent = `📋 Other Scanned Items (${filteredOut.length}) — Filtered Out as Old / Non-Relevant`;
+    details.append(summary);
+    details.append(node('p', 'These items were scanned by the collector but were evaluated as Old / Stale or lacking sufficient keyword relevance.', 'muted'));
+    const filteredGrid = node('div', undefined, 'dimension-grid');
+    renderRecords(filteredGrid, filteredOut, true);
+    details.append(filteredGrid);
+    box.append(details);
+  }
 
   $('platform-report').replaceChildren(box);
 }
