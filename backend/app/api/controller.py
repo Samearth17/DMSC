@@ -410,4 +410,13 @@ class Controller:
                 repo.set_setting('active_profile', self.profile.snapshot())
         return {'status': 'cleared'}
 
+    def clear_past_records(self):
+        with self.lock:
+            with self.repository() as repo:
+                repo.db.execute("DELETE FROM events")
+                repo.db.execute("DELETE FROM audit_runs")
+                repo.db.commit()
+        return {'status': 'purged'}
+
+
 

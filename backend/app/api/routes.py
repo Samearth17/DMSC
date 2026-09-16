@@ -59,6 +59,8 @@ def read(controller, path, query):
 def write(controller,path,data):
     if path == '/api/values/clear-all':
         return controller.clear_all_values()
+    if path == '/api/records/purge':
+        return controller.clear_past_records()
     if path.startswith('/api/values/'):
         with controller.repository() as repo:
             return repo.add_value(path.rsplit('/',1)[-1].replace('-','_'),data.get('value'))
