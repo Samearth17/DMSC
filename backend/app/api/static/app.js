@@ -153,36 +153,57 @@ const templates = {
 
   related: `<div class="panel">
     <h2>Find Related News Coverage</h2>
-    <p>Upload a news article or paste news text/URL to discover coverage across all platforms (News, YouTube, Web, Instagram, Facebook/Meta). Watchtower conjoins your distinguishing anchor terms to scrape and calculate coverage similarity.</p>
+    <p>Upload a news article or paste news text/URL to discover coverage across all platforms (News, YouTube, Web, Instagram, Facebook/Meta). Watchtower conjoins distinguishing anchor terms to scrape and calculate coverage similarity.</p>
+    
+    <div style="background:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #0284c7;padding:14px 16px;border-radius:8px;margin-bottom:16px">
+      <label style="font-weight:700;display:block;margin-bottom:4px;color:#0f172a">1-Click Article URL Scraper
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input id="related-url" type="url" placeholder="Paste article URL (e.g. https://theprint.in/... or https://indianexpress.com/...)" style="flex:1">
+          <button id="related-fetch-btn" type="button" class="primary" style="white-space:nowrap">Fetch & Extract Story</button>
+        </div>
+      </label>
+      <p class="muted" style="margin:4px 0 0;font-size:12px;color:#475569">Extracts headline & body, weights heading terms 4x higher than body paragraphs, auto-suggests distinguishing anchors, and auto-detects publication date.</p>
+    </div>
+
     <div class="limit-grid">
-      <label style="grid-column:span 2">Upload News Text File (.txt or .md)
+      <label style="grid-column:span 2">News Story / Article Text Preview (20–20,000 characters)
+        <textarea id="related-text" rows="6" maxlength="20000" placeholder="Paste article text here, or click 'Fetch & Extract Story' above to scrape automatically..."></textarea>
+      </label>
+      <label style="grid-column:span 2;margin-top:-6px">Or Upload News Text File (.txt or .md)
         <input id="related-file" type="file" accept=".txt,.md,text/plain,text/markdown">
       </label>
-      <label style="grid-column:span 2">Or Paste News / Article Text (20–20,000 characters)
-        <textarea id="related-text" rows="6" maxlength="20000" placeholder="Paste the news story, article body, or incident report here..."></textarea>
-      </label>
-      <label style="grid-column:span 2">Original News / Story URL (Optional)
-        <input id="related-url" type="url" placeholder="https://example.com/news-story-url">
-      </label>
     </div>
-    <div style="margin:12px 0">
+
+    <div style="margin:14px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <label style="margin:0"><strong>Required Anchor Terms (2–8 terms, one per line)</strong></label>
         <button id="related-suggest-btn" type="button" class="small">Auto-Suggest Anchors</button>
       </div>
-      <p class="muted" style="margin:0 0 8px;font-size:12px">Key distinguishing names, places, and incident terms. You can type terms manually or Watchtower will extract them automatically upon search.</p>
-      <textarea id="related-anchors" rows="4" placeholder="Enter 2-8 anchor terms (one per line) or leave blank to auto-extract from your news text..."></textarea>
+      <p class="muted" style="margin:0 0 8px;font-size:12px">Key distinguishing names, places, and incident terms. Terms from the article heading receive 4x priority.</p>
+      <textarea id="related-anchors" rows="4" placeholder="Enter 2-8 anchor terms (one per line) or leave blank to auto-extract from the story..."></textarea>
     </div>
+
     <h3>Platforms to Scrape</h3>
     <div id="related-platforms" class="platform-grid"></div>
-    <label style="margin-top:12px;max-width:320px">Coverage Time Window
-      <select id="related-hours">
-        <option value="24">Last 24 hours</option>
-        <option value="48">Last 48 hours</option>
-        <option value="168" selected>Last 7 days</option>
-        <option value="720">Last 30 days</option>
-      </select>
-    </label>
+
+    <div style="margin-top:14px">
+      <label style="max-width:360px;display:block">Coverage Time Window
+        <select id="related-hours">
+          <option value="24">Last 24 hours</option>
+          <option value="48">Last 48 hours</option>
+          <option value="168" selected>Last 7 days</option>
+          <option value="720">Last 30 days</option>
+          <option value="cutoff">Since specific date/time (Cutoff)</option>
+        </select>
+      </label>
+      <div id="related-cutoff-wrap" style="margin-top:8px;max-width:360px;display:none">
+        <label style="display:block">Only Find Coverage After (Cutoff Date/Time)
+          <input id="related-cutoff-date" type="datetime-local">
+        </label>
+        <p class="muted" style="margin:4px 0 0;font-size:12px">Earlier historical articles published before this cutoff will be ignored.</p>
+      </div>
+    </div>
+
     <div id="related-error" class="notice-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;color:#991b1b;margin-top:14px;padding:10px 14px;border-radius:6px;font-size:13px;font-weight:500;"></div>
     <div class="actions" style="margin-top:16px">
       <button id="related-preview">Preview Queries</button>
@@ -712,6 +733,60 @@ function initRelatedView() {
     });
   }
 
+  const fetchBtn = $('related-fetch-btn');
+  if (fetchBtn && !fetchBtn.dataset.bound) {
+    fetchBtn.dataset.bound = 'true';
+    fetchBtn.addEventListener('click', async () => {
+      clearRelatedError();
+      const urlInput = $('related-url');
+      const url = urlInput ? urlInput.value.trim() : '';
+      if (!url) {
+        showRelatedError('Please enter a valid article URL to fetch.');
+        urlInput?.focus();
+        return;
+      }
+      const origText = fetchBtn.textContent;
+      fetchBtn.disabled = true;
+      fetchBtn.textContent = 'Fetching & Extracting...';
+      try {
+        const res = await api('/api/related/fetch-url', { url });
+        if ($('related-text')) $('related-text').value = res.text || '';
+        if ($('related-anchors') && res.anchors && res.anchors.length) {
+          $('related-anchors').value = res.anchors.join('\n');
+        }
+        if (res.published_at && $('related-cutoff-date') && $('related-hours')) {
+          try {
+            const d = new Date(res.published_at);
+            if (!isNaN(d.getTime())) {
+              const pad = n => String(n).padStart(2, '0');
+              const localIso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+              $('related-cutoff-date').value = localIso;
+              $('related-hours').value = 'cutoff';
+              const wrap = $('related-cutoff-wrap');
+              if (wrap) wrap.style.display = 'block';
+            }
+          } catch {}
+        }
+        notice(`Story extracted: "${res.title || 'Untitled'}" · ${res.anchors?.length || 0} distinguishing anchors generated.`);
+        clearRelatedError();
+      } catch (e) {
+        showRelatedError(e.message || 'Failed to fetch article from URL.');
+      } finally {
+        fetchBtn.disabled = false;
+        fetchBtn.textContent = origText;
+      }
+    });
+  }
+
+  const hoursSelect = $('related-hours');
+  if (hoursSelect && !hoursSelect.dataset.bound) {
+    hoursSelect.dataset.bound = 'true';
+    hoursSelect.addEventListener('change', () => {
+      const wrap = $('related-cutoff-wrap');
+      if (wrap) wrap.style.display = hoursSelect.value === 'cutoff' ? 'block' : 'none';
+    });
+  }
+
   const textArea = $('related-text');
   if (textArea && !textArea.dataset.bound) {
     textArea.dataset.bound = 'true';
@@ -739,10 +814,26 @@ function relatedPayload() {
   const text = $('related-text') ? $('related-text').value.trim() : '';
   const url = $('related-url') ? $('related-url').value.trim() : '';
   const anchors = $('related-anchors') ? $('related-anchors').value.split('\n').map(t => t.trim()).filter(Boolean) : [];
+  
+  let timeWindow;
+  const hoursVal = $('related-hours')?.value || '168';
+  if (hoursVal === 'cutoff') {
+    let cutoff = $('related-cutoff-date')?.value?.trim();
+    if (!cutoff) {
+      const d = new Date(Date.now() - 7 * 86400000);
+      cutoff = d.toISOString();
+    } else if (cutoff.length === 16) {
+      cutoff += ':00+05:30';
+    }
+    timeWindow = { hours: null, start_time: cutoff, timezone: 'Asia/Kolkata' };
+  } else {
+    timeWindow = { hours: Number(hoursVal), timezone: 'Asia/Kolkata' };
+  }
+
   return {
     seed: { text, url, anchors },
     platforms,
-    time_window: { hours: Number($('related-hours')?.value || 168), timezone: 'Asia/Kolkata' }
+    time_window: timeWindow
   };
 }
 
@@ -897,17 +988,31 @@ bind('related-run', async () => {
         if (runBtn) { runBtn.disabled = false; runBtn.textContent = origBtnText; }
         const records = await api('/api/records?run_id=' + encodeURIComponent(result.run_id));
         const relevant = records.filter(i => i.analysis.relevant).sort((a, b) => (b.analysis.relevance_score || 0) - (a.analysis.relevance_score || 0));
-        box.append(node('p', `Found ${relevant.length} related candidates (${records.length - relevant.length} records filtered out).`));
+        
+        const nearMisses = records.filter(i => !i.analysis.relevant && (
+          (i.analysis.relevance_score || 0) > 0.08 ||
+          (i.analysis.related?.matched_anchors?.length || 0) >= 1 ||
+          (i.analysis.related?.shared_terms?.length || 0) >= 2
+        )).sort((a, b) => (b.analysis.relevance_score || 0) - (a.analysis.relevance_score || 0));
+
+        const zeroMatchCount = records.length - relevant.length - nearMisses.length;
+
+        const summaryText = `Found ${relevant.length} related candidate(s)` +
+          (nearMisses.length ? ` · ${nearMisses.length} near-miss records held for review` : '') +
+          (zeroMatchCount > 0 ? ` · ${zeroMatchCount} zero-overlap records discarded` : '');
+        box.append(node('p', summaryText, 'muted'));
+
         if (relevant.length === 0) {
-          box.append(node('p', 'No related candidates found matching all anchors across selected platforms.', 'muted'));
+          box.append(node('p', 'No related candidates found matching the required anchor terms within this time window.', 'muted'));
         } else {
           relevant.forEach(i => box.append(recordCard(i)));
         }
-        if (records.length > relevant.length) {
+
+        if (nearMisses.length > 0) {
           const det = node('details');
-          det.style.marginTop = '14px';
-          det.append(node('summary', `Filtered records (${records.length - relevant.length}) — Click to expand`));
-          records.filter(i => !i.analysis.relevant).forEach(i => det.append(recordCard(i)));
+          det.style.marginTop = '16px';
+          det.append(node('summary', `Inspect Near-Miss Records (${nearMisses.length}) — Click to expand`));
+          nearMisses.forEach(i => det.append(recordCard(i)));
           box.append(det);
         }
       } catch (e) {
@@ -1071,7 +1176,8 @@ function recordCard(item) {
 
   // Status pills
   card.append(pill(a.time_classification, a.time_classification));
-  if (a.relevant) card.append(node('span', 'Relevant', 'pill complete'));
+  if (a.related?.candidate) card.append(node('span', 'Related Candidate', 'pill complete'));
+  else if (a.relevant) card.append(node('span', 'Relevant', 'pill complete'));
 
   // Snippet vs full-text badge for web
   if (e.platform === 'web') {
@@ -1107,9 +1213,15 @@ function recordCard(item) {
   }
 
   if (a.related) {
+    const isCand = a.related.candidate;
     const relBox = node('div', undefined, 'notice-banner');
-    relBox.style.cssText = 'background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;color:#166534;margin:8px 0;padding:8px 12px;border-radius:6px;font-size:12.5px;';
-    relBox.innerHTML = `<strong>Related Coverage Score: ${a.related.score}</strong> · <em>${a.related.relationship}</em><br>${(a.reasons || []).join(' · ')}`;
+    if (isCand) {
+      relBox.style.cssText = 'background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #16a34a;color:#166534;margin:8px 0;padding:8px 12px;border-radius:6px;font-size:12.5px;';
+      relBox.innerHTML = `<strong>Related Candidate (${Math.round(a.related.score * 100)}% Match)</strong><br>${(a.reasons || []).join(' · ')}`;
+    } else {
+      relBox.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #94a3b8;color:#475569;margin:8px 0;padding:8px 12px;border-radius:6px;font-size:12.5px;';
+      relBox.innerHTML = `<strong>Low Overlap (${Math.round(a.related.score * 100)}%) · Filtered Near-Miss</strong><br>${(a.reasons || []).join(' · ')}`;
+    }
     card.append(relBox);
   }
 

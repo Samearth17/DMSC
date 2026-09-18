@@ -28,15 +28,18 @@ class TimeWindow:
         except (ZoneInfoNotFoundError, TypeError, ValueError):
             raise ValueError('Choose a valid IANA timezone') from None
         if window.hours is not None:
-            if type(window.hours) is not int or window.hours not in (1, 6, 12, 24, 48, 168):
+            if type(window.hours) is not int or window.hours not in (1, 6, 12, 24, 48, 168, 720):
                 raise ValueError('Choose a supported relative time window')
             if window.start_time is not None or window.end_time is not None:
                 raise ValueError('Relative windows cannot also specify dates')
         else:
             try:
-                start, end = instant(window.start_time), instant(window.end_time)
-            except (ValueError, TypeError, AttributeError):
-                raise ValueError('Custom time windows need two dates with UTC offsets') from None
+                if not window.start_time:
+                    raise ValueError('Custom time windows require a start date/time')
+                start = instant(window.start_time)
+                end = instant(window.end_time) if window.end_time else datetime.now(timezone.utc)
+            except (ValueError, TypeError, AttributeError) as e:
+                raise ValueError(f'Invalid date/time for time window: {e}') from None
             if start >= end:
                 raise ValueError('Start time must precede end time')
             window.start_time, window.end_time = start.isoformat(), end.isoformat()

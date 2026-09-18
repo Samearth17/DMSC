@@ -383,6 +383,40 @@ class EnhancementsTests(unittest.TestCase):
             self.assertTrue(ev_analysis['relevant'])
             self.assertEqual(ev_analysis['decision'], 'related_candidate')
 
+            # Test noise record with 0 matches returns candidate=False
+            noise_ev = WatchtowerEvent(
+                platform='web', source_type='search', source_id='s-2', item_id='item-2',
+                account='gist.github.com', title='Prompt for Generating README files using Chat GPT',
+                content='Instantly share code, notes, and snippets. ChatGPT API prompt engineering tutorial.',
+                url='https://gist.github.com/planetoftheweb/ddbf48aa93b6eac6508aaf690f03f236'
+            )
+            noise_analysis = analyze(noise_ev, c.profile)
+            self.assertFalse(noise_analysis['relevant'])
+            self.assertEqual(noise_analysis['related']['candidate'], False)
+            self.assertEqual(noise_analysis['related']['relationship'], 'insufficient_overlap')
+
+        # Test weighted anchors prioritizing headline terms
+        from app.intelligence.related import suggest_weighted_anchors
+        h_title = "Secunderabad Arms Heist Cracked: Ex-Havildar Arrested by Police"
+        h_body = [
+            "Investigators recovered several stolen rifles and ammunition boxes from a secluded hideout.",
+            "The operation was conducted late Thursday evening following days of surveillance."
+        ]
+        weighted = suggest_weighted_anchors(h_title, h_body)
+        self.assertIn('Secunderabad Arms Heist Cracked', weighted)
+        self.assertIn('Havildar', weighted)
+
+        # Test cutoff time window parsing with ISO timestamp and offset
+        from app.config.time_window import TimeWindow
+        cutoff_w = TimeWindow.parse({
+            'hours': None,
+            'start_time': '2026-09-11T12:00:00+05:30',
+            'timezone': 'Asia/Kolkata'
+        })
+        self.assertIsNone(cutoff_w.hours)
+        self.assertIsNotNone(cutoff_w.start_time)
+        self.assertIsNotNone(cutoff_w.end_time)
+
     def test_domain_agnostic_keyword_required_relevance(self):
         # Disaster / non-defense monitoring profile
         profile = Profile.parse({

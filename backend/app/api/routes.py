@@ -70,6 +70,8 @@ def write(controller,path,data):
         return controller.related_start(data)
     if path == '/api/related/suggest-anchors':
         return controller.related_suggest_anchors(data)
+    if path == '/api/related/fetch-url':
+        return controller.related_fetch_url(data)
     if path=='/api/instagram/configure':
         return controller.instagram_configure(data)
     if path=='/api/instagram/scrape':

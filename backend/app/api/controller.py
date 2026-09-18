@@ -399,6 +399,11 @@ class Controller:
         text = data.get('text', '') if isinstance(data, dict) else ''
         return {'anchors': suggest_anchors(text)}
 
+    def related_fetch_url(self, data):
+        from app.intelligence.related import fetch_article_from_url
+        url = data.get('url', '') if isinstance(data, dict) else ''
+        return fetch_article_from_url(url)
+
     def clear_all_values(self):
         with self.lock:
             with self.repository() as repo:

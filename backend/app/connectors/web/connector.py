@@ -56,7 +56,7 @@ class WebConnector(SourceConnector):
         client=PublicHTTP(timeout=min(10,policy.timeout_seconds))
         started=time.monotonic()
         robots={}
-        fetches=0
+        query_terms = [t.strip('\"\'(),.').lower() for t in query.text.split() if len(t.strip('\"\'(),.')) > 2 and t.lower() not in {'and', 'or', 'not', 'site'}]
         for item in root.findall('./channel/item')[:policy.items_per_query]:
             link=item.findtext('link') or ''
             target=urlsplit(link)
@@ -64,7 +64,11 @@ class WebConnector(SourceConnector):
                 continue
             if self.domains and not any(target.hostname==d or target.hostname.endswith('.'+d) for d in self.domains):
                 continue
-            raw={'url':link,'title':item.findtext('title') or '', 'snippet':item.findtext('description') or '',
+            title=item.findtext('title') or ''
+            snippet=item.findtext('description') or ''
+            if query_terms and not any(qt in (title + ' ' + snippet).lower() for qt in query_terms):
+                continue
+            raw={'url':link,'title':title, 'snippet':snippet,
                  'raw_xml':ET.tostring(item,encoding='unicode'),'provider':'bing_rss',
                  'collection_status':'search_snippet_only','body_text':'','raw_html':None}
             if fetches<policy.pages_per_query and time.monotonic()-started<policy.timeout_seconds:
