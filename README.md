@@ -52,13 +52,31 @@ profile or audit never receives pre-populated operational monitoring data.
 
 | Platform | Current capability | Validation in this release |
 |---|---|---|
-| YouTube | Bounded yt-dlp search, full metadata, channel, publication timestamp, thumbnails, views, duration | Live one-item audit completed with a current record |
-| News | Google News RSS plus saved public RSS feeds, publisher and publication timestamp | Live one-item audit completed with a current record |
-| Instagram | Local session import/test, public profile discovery, follower-range filtering, saved profiles, hashtag/profile post collection | Session handling and collection outcomes tested with fixtures; no authenticated live account was supplied |
-| X | Existing bridge contract retained | Deferred; original scraper files were not supplied |
-| Reddit | Draft official-API adapter retained | Deferred pending API permission |
-| Meta | Domain-restricted indexed/public-page collection | Foundation only; non-empty Facebook collection not proven |
-| Web | Public search plus bounded robots-aware HTML extraction | Foundation only; availability depends on the source |
+| YouTube | Bounded yt-dlp search, full metadata, channel, publication timestamp, thumbnails, views, duration | Live audit completed with current records |
+| News | Google News RSS plus saved public RSS feeds, publisher and publication timestamp | Live audit completed with current records |
+| Instagram | Multi-tier: Headless Selenium public profile/post scraper + Instaloader session + Google News indexed discovery for breaking news | Live unblocked extraction validated with full captions and media URLs |
+| Meta | Indexed Facebook discovery via public news feeds and RSS search | Real-time Facebook posts validated with direct links and publication dates |
+| X | Existing bridge contract retained | Deferred |
+| Reddit | Draft official-API adapter retained | Deferred |
+| Web | Public search plus bounded robots-aware HTML extraction | Operational |
+
+## Speech-to-Text & Transcription (AI4Bharat IndicConformer 600M)
+
+Watchtower incorporates **AI4Bharat IndicConformer 600M Multilingual** (`ai4bharat/indic-conformer-600m-multilingual`) as its primary on-device Automatic Speech Recognition (ASR) engine:
+
+- **22 Scheduled Indian Languages**: Assamese (`as`), Bengali (`bn`), Bodo (`brx`), Dogri (`doi`), Gujarati (`gu`), Hindi (`hi`), Kannada (`kn`), Konkani (`kok`), Kashmiri (`ks`), Maithili (`mai`), Malayalam (`ml`), Manipuri (`mni`), Marathi (`mr`), Nepali (`ne`), Odia (`or`), Punjabi (`pa`), Sanskrit (`sa`), Santali (`sat`), Sindhi (`sd`), Tamil (`ta`), Telugu (`te`), Urdu (`ur`).
+- **Verbatim Native Script**: Preserves spoken language script directly (Devanagari, Tamil, Telugu, Gurmukhi, etc.) without automated translation or LLM hallucination.
+- **Hardware Acceleration**: Automatic GPU (`cuda`), Apple Silicon (`mps`), or CPU selection with automatic fallback.
+- **Decoders Supported**: Hybrid RNNT (default for high accuracy) and CTC (for fast decoding).
+- **Long Video Audio Chunking**: 30-second sliding windows with 1.0-second overlap to process full-length YouTube broadcasts and reconstruct accurate timestamps.
+- **CLI Commands**:
+  ```sh
+  # Transcribe any audio file or video URL
+  python -m app.cli transcribe --file sample.wav --language hi --provider indic_conformer --decoder rnnt
+
+  # Benchmark IndicConformer vs Whisper back-to-back
+  python -m app.cli benchmark-asr --file sample.wav --language hi
+  ```
 
 “Installed” and “accessible” are different. Authentication failure, rate limit,
 unavailability, empty accessible results, stale results, and successful results are

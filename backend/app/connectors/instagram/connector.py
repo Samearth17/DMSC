@@ -48,13 +48,33 @@ class InstagramConnector(SourceConnector):
                      rate_limited="instagram_rate_limited" in data.get("warnings",[]))
 
     def normalize(self, record):
-        return WatchtowerEvent(platform=self.platform, source_type="account",source_id=str(record["owner_id"]),
-            item_id=str(record["id"]),url="https://www.instagram.com/p/"+record["shortcode"]+"/",
-            account=record.get("username"),content=record.get("caption") or "",
-            published_at=record.get("published_at"),engagement=record.get("engagement",{}),
+        item_url = record.get("url")
+        if not item_url and record.get("shortcode"):
+            item_url = "https://www.instagram.com/p/" + record["shortcode"] + "/"
+        owner_id = str(record.get("owner_id") or record.get("username") or "instagram")
+        item_id = str(record.get("id") or record.get("shortcode") or item_url or "")
+        username = record.get("username") or record.get("author") or "Instagram"
+        content = record.get("caption") or record.get("content") or record.get("title") or ""
+
+        return WatchtowerEvent(
+            platform=self.platform,
+            source_type="account" if record.get("owner_id") else "post",
+            source_id=owner_id,
+            item_id=item_id,
+            url=item_url or "",
+            account=username,
+            content=content,
+            published_at=record.get("published_at"),
+            engagement=record.get("engagement", {}),
             published_at_source='instagram_post' if record.get('published_at') else None,
-            time_confidence=1.0 if record.get('published_at') else None,author=record.get('username'),
-            media=record.get("media",[]),metadata={"collection_scope":"public_posts_from_discovered_profiles_or_hashtag",
-              "transcript_status":record.get("transcript_status", "collected" if record.get("transcript_text") else "not_collected"),
-              "transcript_text":record.get("transcript_text"),
-              "discovery_method":record.get("discovery_method")}).validate()
+            time_confidence=1.0 if record.get('published_at') else None,
+            author=username,
+            title=record.get("title"),
+            media=record.get("media", []),
+            metadata={
+                "collection_scope": record.get("collection_scope", "public_posts_from_discovered_profiles_or_hashtag"),
+                "transcript_status": record.get("transcript_status", "collected" if record.get("transcript_text") else "not_collected"),
+                "transcript_text": record.get("transcript_text"),
+                "discovery_method": record.get("discovery_method", "instaloader"),
+            },
+        ).validate()

@@ -285,8 +285,16 @@ class Controller:
     def transcribe_record(self, data):
         url = data.get('url')
         event_id = data.get('event_id')
+        req_lang = data.get('language')
+        req_decoder = data.get('decoder')
+        req_provider = data.get('provider')
+
         with self.repository() as repo:
             cfg = repo.setting('transcription_config', {})
+            effective_lang = req_lang or cfg.get('language') or 'hi'
+            effective_dec = req_decoder or cfg.get('decoder') or 'rnnt'
+            effective_prov = req_provider or cfg.get('provider')
+
             if event_id:
                 row = repo.db.execute("SELECT normalized FROM events WHERE id=?", (event_id,)).fetchone()
                 if not row:
@@ -296,10 +304,14 @@ class Controller:
                 if not target_url:
                     raise ValueError("Record has no media URL to transcribe")
                 from app.intelligence.transcription import transcribe_audio
-                res = transcribe_audio(target_url, config=cfg)
+                res = transcribe_audio(target_url, provider=effective_prov, config=cfg, language=effective_lang, decoder=effective_dec)
                 if res.get('status') == 'collected' and res.get('text'):
                     event_data.setdefault('metadata', {})
                     event_data['metadata']['transcript_text'] = res['text']
+                    event_data['metadata']['transcript_language'] = res.get('language')
+                    event_data['metadata']['transcript_engine'] = res.get('engine') or res.get('provider')
+                    event_data['metadata']['transcript_decoder'] = res.get('decoder')
+                    event_data['metadata']['transcript_segments'] = res.get('segments')
                     event_data['metadata']['transcript_status'] = 'collected'
                     normalized_str = json.dumps(event_data, ensure_ascii=False)
                     repo.db.execute("UPDATE events SET normalized=? WHERE id=?", (normalized_str, event_id))
@@ -308,12 +320,21 @@ class Controller:
                     wevent = WatchtowerEvent(**{k: v for k, v in event_data.items() if k in WatchtowerEvent.__dataclass_fields__})
                     analysis = analyze(wevent, self.profile)
                     repo.db.execute("UPDATE analysis_results SET analysis=? WHERE event_id=?", (json.dumps(analysis), event_id))
-                    return {'status': 'collected', 'text': res['text'], 'analysis': analysis, 'provider': res.get('provider')}
+                    return {
+                        'status': 'collected',
+                        'text': res['text'],
+                        'language': res.get('language'),
+                        'engine': res.get('engine') or res.get('provider'),
+                        'decoder': res.get('decoder'),
+                        'segments': res.get('segments'),
+                        'analysis': analysis,
+                        'provider': res.get('provider')
+                    }
                 return res
             elif url:
                 save_event = bool(data.get('save') or data.get('save_to_watchtower'))
                 from app.intelligence.transcription import transcribe_audio, fetch_single_video_metadata
-                res = transcribe_audio(url, config=cfg)
+                res = transcribe_audio(url, provider=effective_prov, config=cfg, language=effective_lang, decoder=effective_dec)
                 if save_event:
                     import uuid
                     from datetime import datetime, timezone

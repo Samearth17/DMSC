@@ -58,6 +58,17 @@ def main(argv=None):
     history.add_argument("platform", choices=PLATFORMS)
     history.add_argument("source_id")
     sub.add_parser("demo", help="Run explicit synthetic data offline; use a separate --db")
+
+    trans_cmd = sub.add_parser("transcribe", help="Transcribe audio file or YouTube video URL")
+    trans_cmd.add_argument("--file", required=True, help="Local audio path or video URL")
+    trans_cmd.add_argument("--language", default="hi", help="Language code (e.g. hi, te, ta, mr, en)")
+    trans_cmd.add_argument("--provider", choices=["indic_conformer", "whisper", "whisperflow_api"], default="indic_conformer")
+    trans_cmd.add_argument("--decoder", choices=["rnnt", "ctc"], default="rnnt")
+
+    bench_cmd = sub.add_parser("benchmark-asr", help="Benchmark IndicConformer vs Whisper back-to-back")
+    bench_cmd.add_argument("--file", required=True, help="Audio file path to benchmark")
+    bench_cmd.add_argument("--language", default="hi", help="Language code (default hi)")
+
     args = parser.parse_args(argv)
     repo = None
     try:
@@ -92,6 +103,47 @@ def main(argv=None):
                 output({"profile": profile.name, "queries": plan(profile),
                         "semantics": "independent OR discovery lanes; selected terms are not mandatory AND filters"})
                 return 0
+
+        if args.command == "transcribe":
+            from app.intelligence.transcription import transcribe_audio
+            res = transcribe_audio(
+                args.file,
+                provider=args.provider,
+                language=args.language,
+                decoder=args.decoder,
+            )
+            output(res)
+            return 0 if res.get("status") == "collected" else 1
+
+        if args.command == "benchmark-asr":
+            import time
+            from app.services.asr import get_asr_service
+            audio_path = args.file
+            lang = args.language
+
+            results = {}
+            for prov in ["indic_conformer", "whisper"]:
+                service = get_asr_service(prov)
+                avail, reason = service.is_available()
+                if not avail:
+                    results[prov] = {"available": False, "reason": reason}
+                    continue
+                t0 = time.monotonic()
+                res = service.transcribe(audio_path, language=lang)
+                dur = time.monotonic() - t0
+                results[prov] = {
+                    "available": True,
+                    "status": res.status,
+                    "duration_seconds": round(dur, 2),
+                    "word_count": len(res.text.split()) if res.text else 0,
+                    "character_count": len(res.text) if res.text else 0,
+                    "segments_count": len(res.segments),
+                    "transcript_preview": res.text[:200] if res.text else "",
+                    "error": res.error,
+                }
+            output(results)
+            return 0
+
         repo = Repository(args.db)
         if args.command == "run":
             result = AuditEngine(repo, registry()).run(profile)

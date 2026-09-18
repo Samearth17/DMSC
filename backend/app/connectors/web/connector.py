@@ -53,6 +53,7 @@ class WebConnector(SourceConnector):
         except (ValueError,ET.ParseError):
             raise ConnectorError(f'{self.platform}_discovery_invalid_feed',requests=1) from None
         records,warnings=[],[]
+        fetches=0
         client=PublicHTTP(timeout=min(10,policy.timeout_seconds))
         started=time.monotonic()
         robots={}
