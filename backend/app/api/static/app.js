@@ -63,15 +63,15 @@ function formatDate(v) {
 function pill(status, extraCls) {
   const cls = extraCls ? `pill ${extraCls}` : `pill ${status || ''}`;
   const label = {
-    'complete': '✅ Complete',
-    'failed': '❌ Failed',
-    'partial': '⚠️ Partial',
-    'running': '⏳ Running',
-    'disabled': '—',
-    'CURRENT': '🕐 Current',
-    'STALE': '📅 Old',
-    'UNKNOWN_TIME': '❓ Unknown date',
-    'AFTER_WINDOW': '⏭️ After window'
+    'complete': 'Complete',
+    'failed': 'Failed',
+    'partial': 'Partial',
+    'running': 'Running',
+    'disabled': 'Disabled',
+    'CURRENT': 'Current',
+    'STALE': 'Old',
+    'UNKNOWN_TIME': 'Unknown date',
+    'AFTER_WINDOW': 'After window'
   }[status] || status || 'Not audited';
   return node('span', label, cls);
 }
@@ -149,10 +149,10 @@ function showRaw(title, data) {
 const templates = {
   dashboard: '<div id="overview"></div><h2>Platform Overview</h2><div id="dashboard-platforms" class="platform-grid"></div><h2>Recent Findings</h2><div id="latest-events"></div>',
 
-  instagram: `<div id="ig-session-bar" class="ig-status-bar disconnected"><div class="ig-status-pill"><span class="ig-status-dot"></span><span id="ig-session-text">Session Required</span></div><div class="actions"><button id="ig-test-btn">Test Connection</button><button id="ig-toggle-setup">Setup / Change Session</button></div></div><div id="ig-quick-connect" class="ig-quick-card" hidden><div><p><strong>Local Session File Detected!</strong> We found <code id="ig-quick-filename">session file</code> on your machine.</p><p class="muted">You can connect to Instagram with 1-click without copying cookies or terminal commands.</p></div><button id="ig-quick-btn" class="primary">Connect Local Session</button></div><div id="ig-setup-panel" class="panel" hidden><h2>Instagram Connection Setup</h2><p>Connect your Instagram account using browser cookies. No terminal commands or password storage; cookies remain strictly on this computer.</p><details class="ig-guide"><summary>📖 How to get your cookies in 30 seconds (Click to expand)</summary><ol><li>Open <a href="https://www.instagram.com" target="_blank" rel="noopener">instagram.com</a> and log into your account.</li><li>Press <strong>F12</strong> (or Right-click &rarr; <strong>Inspect</strong>).</li><li>Go to <strong>Application</strong> (or <strong>Storage</strong> in Firefox) &rarr; <strong>Cookies</strong> &rarr; <code>https://www.instagram.com</code>.</li><li>Copy the value of <strong>sessionid</strong> and <strong>csrftoken</strong> and paste them below!</li></ol></details><div class="limit-grid" style="margin-top:14px"><label>Instagram Username<input id="ig-auth-user" placeholder="e.g. jacethepint" autocomplete="off"></label><label>sessionid Cookie<input id="ig-auth-sessionid" type="password" placeholder="Paste sessionid value"></label><label>csrftoken Cookie<input id="ig-auth-csrftoken" type="password" placeholder="Paste csrftoken value"></label></div><div class="actions" style="margin-top:14px"><button id="ig-save-cookies" class="primary">Save & Connect</button><button id="ig-show-file-upload">Or Upload Session File</button></div><div id="ig-file-upload-box" class="actions" style="margin-top:10px" hidden><input id="ig-file-input" type="file" accept=".json"><button id="ig-upload-btn">Upload & Connect</button></div></div><div class="panel"><div class="ig-tabs"><button id="tab-ig-profile" class="ig-tab active">👤 Profile Posts</button><button id="tab-ig-hashtag" class="ig-tab"># Hashtag Feed</button><button id="tab-ig-discover" class="ig-tab">🔍 Discover Accounts</button></div><div id="ig-mode-profile"><div class="limit-grid"><label style="grid-column:span 2">Instagram Username<input id="ig-target-user" placeholder="e.g. indianarmy.adgpi, defence_mania"></label><label>Post Limit<select id="ig-target-limit"><option value="5">5 posts</option><option value="10" selected>10 posts</option><option value="20">20 posts</option><option value="50">50 posts</option></select></label><label>Timeline / Period<select id="ig-target-time"><option value="all" selected>All recent (by limit)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="custom">Custom date range</option></select></label></div><div id="ig-target-custom" class="limit-grid" style="margin-top:10px" hidden><label>From Date<input id="ig-target-since" type="datetime-local"></label><label>To Date<input id="ig-target-until" type="datetime-local"></label></div><div class="ig-chips"><span class="muted" style="font-size:12px;align-self:center">Try:</span><span class="ig-chip" data-chip="indianarmy.adgpi">@indianarmy.adgpi</span><span class="ig-chip" data-chip="defence_academy_dharmshala_">@defence_academy_dharmshala_</span><span class="ig-chip" data-chip="defence_mania">@defence_mania</span></div><div class="actions" style="margin-top:16px"><button id="ig-scrape-btn" class="primary">Scrape Profile Posts</button></div></div><div id="ig-mode-hashtag" hidden><div class="limit-grid"><label style="grid-column:span 2">Hashtag Name<input id="ig-target-tag" placeholder="e.g. indianarmy, defence"></label><label>Post Limit<select id="ig-tag-limit"><option value="5">5 posts</option><option value="10" selected>10 posts</option><option value="20">20 posts</option><option value="50">50 posts</option></select></label><label>Timeline / Period<select id="ig-tag-time"><option value="all" selected>All recent (by limit)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="custom">Custom date range</option></select></label></div><div id="ig-tag-custom" class="limit-grid" style="margin-top:10px" hidden><label>From Date<input id="ig-tag-since" type="datetime-local"></label><label>To Date<input id="ig-tag-until" type="datetime-local"></label></div><div class="ig-chips"><span class="muted" style="font-size:12px;align-self:center">Try:</span><span class="ig-chip-tag" data-chip="indianarmy">#indianarmy</span><span class="ig-chip-tag" data-chip="defence">#defence</span><span class="ig-chip-tag" data-chip="indianairforce">#indianairforce</span></div><div class="actions" style="margin-top:16px"><button id="ig-scrape-tag-btn" class="primary">Scrape Hashtag</button></div></div><div id="ig-mode-discover" hidden><div class="limit-grid"><label>Search Keyword<input id="ig-disc-term" placeholder="e.g. defence, army, airforce"></label><label>Min Followers<input id="ig-disc-min" type="number" min="0" placeholder="Optional"></label><label>Max Followers<input id="ig-disc-max" type="number" min="0" placeholder="Optional"></label></div><div class="actions" style="margin-top:16px"><button id="ig-discover-btn" class="primary">Search Accounts</button></div><div id="ig-discover-results" style="margin-top:18px"></div></div></div><div id="ig-scrape-loading" class="ig-loader" hidden><div class="ig-spinner"></div><span id="ig-scrape-status-text">Fetching data from Instagram...</span></div><div id="ig-profile-card"></div><div id="ig-results-toolbar" class="actions" style="justify-content:space-between;margin:18px 0 12px" hidden><h3 id="ig-results-title">Scraped Posts (0)</h3><div class="actions"><button id="ig-export-json">Export JSON</button><button id="ig-export-csv">Export CSV</button><button id="ig-add-source" class="primary">+ Save Account to Profile</button></div></div><div id="ig-posts-container" class="ig-posts-grid"></div>`,
+  instagram: `<div id="ig-session-bar" class="ig-status-bar disconnected"><div class="ig-status-pill"><span class="ig-status-dot"></span><span id="ig-session-text">Session Required</span></div><div class="actions"><button id="ig-test-btn">Test Connection</button><button id="ig-toggle-setup">Setup / Change Session</button></div></div><div id="ig-quick-connect" class="ig-quick-card" hidden><div><p><strong>Local Session File Detected!</strong> We found <code id="ig-quick-filename">session file</code> on your machine.</p><p class="muted">You can connect to Instagram with 1-click without copying cookies or terminal commands.</p></div><button id="ig-quick-btn" class="primary">Connect Local Session</button></div><div id="ig-setup-panel" class="panel" hidden><h2>Instagram Connection Setup</h2><p>Connect your Instagram account using browser cookies. No terminal commands or password storage; cookies remain strictly on this computer.</p><details class="ig-guide"><summary>How to get your cookies in 30 seconds (Click to expand)</summary><ol><li>Open <a href="https://www.instagram.com" target="_blank" rel="noopener">instagram.com</a> and log into your account.</li><li>Press <strong>F12</strong> (or Right-click &rarr; <strong>Inspect</strong>).</li><li>Go to <strong>Application</strong> (or <strong>Storage</strong> in Firefox) &rarr; <strong>Cookies</strong> &rarr; <code>https://www.instagram.com</code>.</li><li>Copy the value of <strong>sessionid</strong> and <strong>csrftoken</strong> and paste them below!</li></ol></details><div class="limit-grid" style="margin-top:14px"><label>Instagram Username<input id="ig-auth-user" placeholder="e.g. jacethepint" autocomplete="off"></label><label>sessionid Cookie<input id="ig-auth-sessionid" type="password" placeholder="Paste sessionid value"></label><label>csrftoken Cookie<input id="ig-auth-csrftoken" type="password" placeholder="Paste csrftoken value"></label></div><div class="actions" style="margin-top:14px"><button id="ig-save-cookies" class="primary">Save & Connect</button><button id="ig-show-file-upload">Or Upload Session File</button></div><div id="ig-file-upload-box" class="actions" style="margin-top:10px" hidden><input id="ig-file-input" type="file" accept=".json"><button id="ig-upload-btn">Upload & Connect</button></div></div><div class="panel"><div class="ig-tabs"><button id="tab-ig-profile" class="ig-tab active">Profile Posts</button><button id="tab-ig-hashtag" class="ig-tab">Hashtag Feed</button><button id="tab-ig-discover" class="ig-tab">Discover Accounts</button></div><div id="ig-mode-profile"><div class="limit-grid"><label style="grid-column:span 2">Instagram Username<input id="ig-target-user" placeholder="e.g. indianarmy.adgpi, defence_mania"></label><label>Post Limit<select id="ig-target-limit"><option value="5">5 posts</option><option value="10" selected>10 posts</option><option value="20">20 posts</option><option value="50">50 posts</option></select></label><label>Timeline / Period<select id="ig-target-time"><option value="all" selected>All recent (by limit)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="custom">Custom date range</option></select></label></div><div id="ig-target-custom" class="limit-grid" style="margin-top:10px" hidden><label>From Date<input id="ig-target-since" type="datetime-local"></label><label>To Date<input id="ig-target-until" type="datetime-local"></label></div><div class="ig-chips"><span class="muted" style="font-size:12px;align-self:center">Try:</span><span class="ig-chip" data-chip="indianarmy.adgpi">@indianarmy.adgpi</span><span class="ig-chip" data-chip="defence_academy_dharmshala_">@defence_academy_dharmshala_</span><span class="ig-chip" data-chip="defence_mania">@defence_mania</span></div><div class="actions" style="margin-top:16px"><button id="ig-scrape-btn" class="primary">Scrape Profile Posts</button></div></div><div id="ig-mode-hashtag" hidden><div class="limit-grid"><label style="grid-column:span 2">Hashtag Name<input id="ig-target-tag" placeholder="e.g. indianarmy, defence"></label><label>Post Limit<select id="ig-tag-limit"><option value="5">5 posts</option><option value="10" selected>10 posts</option><option value="20">20 posts</option><option value="50">50 posts</option></select></label><label>Timeline / Period<select id="ig-tag-time"><option value="all" selected>All recent (by limit)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="720">Last 30 days</option><option value="custom">Custom date range</option></select></label></div><div id="ig-tag-custom" class="limit-grid" style="margin-top:10px" hidden><label>From Date<input id="ig-tag-since" type="datetime-local"></label><label>To Date<input id="ig-tag-until" type="datetime-local"></label></div><div class="ig-chips"><span class="muted" style="font-size:12px;align-self:center">Try:</span><span class="ig-chip-tag" data-chip="indianarmy">#indianarmy</span><span class="ig-chip-tag" data-chip="defence">#defence</span><span class="ig-chip-tag" data-chip="indianairforce">#indianairforce</span></div><div class="actions" style="margin-top:16px"><button id="ig-scrape-tag-btn" class="primary">Scrape Hashtag</button></div></div><div id="ig-mode-discover" hidden><div class="limit-grid"><label>Search Keyword<input id="ig-disc-term" placeholder="e.g. defence, army, airforce"></label><label>Min Followers<input id="ig-disc-min" type="number" min="0" placeholder="Optional"></label><label>Max Followers<input id="ig-disc-max" type="number" min="0" placeholder="Optional"></label></div><div class="actions" style="margin-top:16px"><button id="ig-discover-btn" class="primary">Search Accounts</button></div><div id="ig-discover-results" style="margin-top:18px"></div></div></div><div id="ig-scrape-loading" class="ig-loader" hidden><div class="ig-spinner"></div><span id="ig-scrape-status-text">Fetching data from Instagram...</span></div><div id="ig-profile-card"></div><div id="ig-results-toolbar" class="actions" style="justify-content:space-between;margin:18px 0 12px" hidden><h3 id="ig-results-title">Scraped Posts (0)</h3><div class="actions"><button id="ig-export-json">Export JSON</button><button id="ig-export-csv">Export CSV</button><button id="ig-add-source" class="primary">+ Save Account to Profile</button></div></div><div id="ig-posts-container" class="ig-posts-grid"></div>`,
 
   related: `<div class="panel">
-    <h2>📰 Find Related News Coverage</h2>
+    <h2>Find Related News Coverage</h2>
     <p>Upload a news article or paste news text/URL to discover coverage across all platforms (News, YouTube, Web, Instagram, Facebook/Meta). Watchtower conjoins your distinguishing anchor terms to scrape and calculate coverage similarity.</p>
     <div class="limit-grid">
       <label style="grid-column:span 2">Upload News Text File (.txt or .md)
@@ -168,7 +168,7 @@ const templates = {
     <div style="margin:12px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <label style="margin:0"><strong>Required Anchor Terms (2–8 terms, one per line)</strong></label>
-        <button id="related-suggest-btn" type="button" class="small">⚡ Auto-Suggest Anchors</button>
+        <button id="related-suggest-btn" type="button" class="small">Auto-Suggest Anchors</button>
       </div>
       <p class="muted" style="margin:0 0 8px;font-size:12px">Key distinguishing names, places, and incident terms. All anchors will be matched to eliminate false positives.</p>
       <textarea id="related-anchors" rows="4" placeholder="Example:&#10;Secunderabad&#10;Defence Cantonment&#10;Bolarum"></textarea>
@@ -184,26 +184,26 @@ const templates = {
       </select>
     </label>
     <div class="actions" style="margin-top:16px">
-      <button id="related-preview">👁️ Preview Queries</button>
-      <button id="related-run" class="primary">🚀 Scrape & Find Related Coverage</button>
+      <button id="related-preview">Preview Queries</button>
+      <button id="related-run" class="primary">Scrape & Find Related Coverage</button>
     </div>
     <div id="related-preview-result" style="margin-top:14px"></div>
   </div>
   <div id="related-results" style="margin-top:18px"></div>`,
 
-  profile: '<div class="section-heading"><p>Set up your monitoring profile — add keywords, enable platforms, and save.</p><div class="actions" style="gap:8px"><button id="clear-all-values-btn" class="small" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">🗑️ Clear All Saved Queries</button><button id="save-profile" class="primary">💾 Save Profile</button></div></div><label class="name-field">Profile name<input id="profile-name" maxlength="120" placeholder="e.g. Kashmir Intel Monitor"></label><div id="dimensions" class="dimension-grid"></div><div class="panel"><h2>🛡️ Topic & Relevance Filtering</h2><p>Control how Watchtower scores intelligence relevance and suppresses non-defense noise (e.g. festivals, shopping, lifestyle).</p><div class="limit-grid"><label style="grid-column:span 2">Relevance Mode<select id="relevance-mode"><option value="defense_focus" selected>🛡️ Defense & Security Focus (Strict defense signals required; suppresses festivals/noise)</option><option value="all_categories">🎯 All Categories Required (AND - requires entity + keyword + location)</option><option value="any_category">🌐 Broad Match (Any matched keyword/hashtag)</option></select></label><label style="grid-column:span 2">Exclude Noise Terms (Comma separated)<input id="relevance-exclude-terms" placeholder="ganesh, ganpati, visarjan, bonalu, festival, lifestyle, shopping, saree, wedding, vlogs, discounts"></label></div></div><h2>Platforms to Monitor</h2><div id="platform-select" class="platform-grid"></div><div class="panel"><h2>Platform Specific Queries</h2><p>Override global dimensions for specific platforms. These take priority.</p><div id="platform-queries"></div></div><div class="panel"><h2>Saved Accounts & Feeds</h2><p>Add Instagram accounts or RSS news feeds to monitor directly.</p><div id="saved-sources"></div></div>',
+  profile: '<div class="section-heading"><p>Set up your monitoring profile — add keywords, enable platforms, and save.</p><div class="actions" style="gap:8px"><button id="clear-all-values-btn" class="small" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;">Clear All Saved Queries</button><button id="save-profile" class="primary">Save Profile</button></div></div><label class="name-field">Profile name<input id="profile-name" maxlength="120" placeholder="e.g. Regional Intel Monitor"></label><div id="dimensions" class="dimension-grid"></div><div class="panel"><h2>Topic & Relevance Filtering</h2><p>Control how Watchtower scores intelligence relevance and suppresses non-target noise.</p><div class="limit-grid"><label style="grid-column:span 2">Relevance Mode<select id="relevance-mode"><option value="keyword_required" selected>Keyword-Required (Strict topic match; requires your keywords/entities)</option><option value="all_categories">All Categories Required (AND - requires entity + keyword + location)</option><option value="any_category">Broad Match (Any matched keyword/hashtag)</option></select></label><label style="grid-column:span 2">Exclude Noise Terms (Comma separated)<input id="relevance-exclude-terms" placeholder="festivals, shopping, lifestyle, retail, promotions, vlogs"></label></div></div><h2>Platforms to Monitor</h2><div id="platform-select" class="platform-grid"></div><div class="panel"><h2>Platform Specific Queries</h2><p>Override global dimensions for specific platforms. These take priority.</p><div id="platform-queries"></div></div><div class="panel"><h2>Saved Accounts & Feeds</h2><p>Add Instagram accounts or RSS news feeds to monitor directly.</p><div id="saved-sources"></div></div>',
 
-  run: '<div class="panel"><h2>🚀 Start New Audit</h2><p id="run-summary"></p><p>All enabled platforms will be scanned simultaneously. Results appear in real-time.</p><div class="limit-grid"><label>Time window<select id="window-hours"><option value="1">Last 1 hour</option><option value="6">Last 6 hours</option><option value="12">Last 12 hours</option><option value="24" selected>Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="custom">Custom range</option></select></label><label>Timezone<input id="window-zone" value="Asia/Kolkata" readonly></label></div><div id="custom-window" class="limit-grid" hidden><label>From<input id="window-start" type="datetime-local"></label><label>To<input id="window-end" type="datetime-local"></label></div><div class="actions"><button id="preview-plan">👁️ Preview Queries</button><button id="run-audit" class="primary">▶️ Run Audit Now</button></div><div id="query-plan"></div></div><div id="live-report"></div>',
+  run: '<div class="panel"><h2>Start New Audit</h2><p id="run-summary"></p><p>All enabled platforms will be scanned simultaneously. Results appear in real-time.</p><div class="limit-grid"><label>Time window<select id="window-hours"><option value="1">Last 1 hour</option><option value="6">Last 6 hours</option><option value="12">Last 12 hours</option><option value="24" selected>Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option><option value="custom">Custom range</option></select></label><label>Timezone<input id="window-zone" value="Asia/Kolkata" readonly></label></div><div id="custom-window" class="limit-grid" hidden><label>From<input id="window-start" type="datetime-local"></label><label>To<input id="window-end" type="datetime-local"></label></div><div class="actions"><button id="preview-plan">Preview Queries</button><button id="run-audit" class="primary">Run Audit Now</button></div><div id="query-plan"></div></div><div id="live-report"></div>',
 
   history: '<div class="history-layout"><div id="run-list" class="panel"></div><div id="history-report"></div></div>',
 
   platforms: '<div id="platform-cards" class="platform-grid"></div><div id="platform-report"></div>',
 
-  records: '<div class="search-guide-box"><div class="guide-header"><strong>🔍 Search Tips</strong></div><div class="guide-chips"><span class="guide-chip" id="chip-boolean">Boolean: <code>("Ooty" OR "ऊटी") AND ("Indian Army")</code></span><span class="guide-chip" id="chip-or">Multi-term: <code>flood or earthquake or landslide</code></span><span class="guide-chip" id="chip-phrase">Exact phrase: <code>"rescue operation"</code></span></div></div><form id="search-form" class="panel"><div id="search-fields" class="limit-grid"></div><p>Search across all past audit results. Supports Boolean queries and exact phrases.</p><button type="submit" class="primary">🔍 Search</button></form><div id="record-results"></div>',
+  records: '<div class="search-guide-box"><div class="guide-header"><strong>Search Tips</strong></div><div class="guide-chips"><span class="guide-chip" id="chip-boolean">Boolean: <code>("Ooty" OR "ऊटी") AND ("Rescue Team")</code></span><span class="guide-chip" id="chip-or">Multi-term: <code>flood or earthquake or landslide</code></span><span class="guide-chip" id="chip-phrase">Exact phrase: <code>"rescue operation"</code></span></div></div><form id="search-form" class="panel"><div id="search-fields" class="limit-grid"></div><p>Search across all past audit results. Supports Boolean queries and exact phrases.</p><button type="submit" class="primary">Search</button></form><div id="record-results"></div>',
 
   events: '<p>Key findings grouped by similarity. Review each for verification.</p><div id="event-results"></div>',
 
-  settings: '<div class="panel" id="settings-policies-panel"><h2>⚙️ Collection Settings</h2><p>Adjust how many items to fetch, timeout budgets, and page counts per platform.</p><div id="settings-policies"></div><div class="actions"><button id="save-settings-policies" class="primary">💾 Save Settings</button></div></div><div class="panel" id="settings-transcription-panel"><h2>🎙️ Video & Audio Transcription (WhisperFlow / Whisper)</h2><p>Extract spoken audio dialogue from YouTube videos and Instagram reels to evaluate keyword and entity relevance.</p><div id="transcription-status-box" class="notice-banner" style="background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;color:#166534;margin:12px 0;padding:12px 16px;border-radius:8px;"><strong id="transcription-status-badge">✅ Local Engine: Installed (openai-whisper)</strong><p id="transcription-status-notes" style="margin:4px 0 0;font-size:13px;"></p></div><div class="notice-banner" style="background:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #0284c7;color:#0f172a;margin:14px 0 12px;padding:12px 16px;border-radius:8px;"><strong>🛡️ System Protection: Strictly On-Demand Video Processing</strong><p style="margin:4px 0 0;font-size:13px;line-height:1.45;color:#334155;">Audits and general scrapes <strong>never</strong> download or transcribe videos in bulk. That would freeze your system and exhaust RAM/disk. Instead, Watchtower only collects lightweight text metadata. Audio transcription runs <strong>strictly for your desired video only</strong> when you click <strong>\'🎙️ Transcribe Audio\'</strong> on that specific card, or inspect a single desired video below.</p></div><div class="limit-grid"><label>Engine Mode<select id="transcribe-mode"><option value="whisper">Local Whisper (Runs on this Mac)</option><option value="whisperflow_api">WhisperFlow / OpenAI Cloud API</option></select></label><label>Local Whisper Model<select id="transcribe-model"><option value="tiny">tiny (Fastest, low memory)</option><option value="base" selected>base (Recommended)</option><option value="small">small (Higher accuracy)</option><option value="medium">medium (Best accuracy)</option></select></label><label id="transcribe-key-wrap" style="grid-column:span 2">WhisperFlow / OpenAI API Key (Optional for Cloud Mode)<input id="transcribe-api-key" type="password" placeholder="Enter API key (sk-...) for cloud transcription"></label><label id="transcribe-endpoint-wrap" style="grid-column:span 2">API Endpoint URL (Optional)<input id="transcribe-api-endpoint" placeholder="https://api.openai.com/v1/audio/transcriptions"></label></div><div class="actions" style="margin-top:14px"><button id="save-transcription-btn" class="primary">💾 Save Transcription Settings</button></div><details open style="margin-top:16px;background:#f8fafc;padding:14px 16px;border-radius:8px;border:1px solid #e2e8f0"><summary style="cursor:pointer;font-weight:700;color:var(--blue)">🎯 Inspect & Transcribe Desired Video (Single Target)</summary><p style="margin:6px 0 10px;font-size:13px;color:#475569;">Extract dialogue, threat/relevance scores, and intelligence from <strong>one single desired video</strong> without scraping unrelated feeds.</p><div class="limit-grid" style="margin-top:8px"><label style="grid-column:span 2">Desired Video URL (YouTube, Instagram Reel, etc.)<input id="test-transcribe-url" placeholder="https://www.youtube.com/watch?v=... or https://www.instagram.com/reel/..."></label></div><div class="actions" style="margin-top:10px;display:flex;gap:8px;"><button id="test-transcribe-btn">🎙️ Transcribe Desired Video</button><button id="save-transcribe-video-btn" class="primary">🎯 Transcribe & Save to Records</button></div><div id="test-transcribe-result" style="margin-top:12px" hidden></div></details></div><div class="panel"><h2>📸 Instagram Connection</h2><p>Import your Instaloader session file to enable Instagram monitoring.</p><div class="limit-grid"><label>Username<input id="ig-username" autocomplete="off" placeholder="your_username"></label><label>Session file<input id="ig-session" type="file"></label></div><div class="actions"><button id="ig-configure">Import Session</button><button id="ig-test">Test Connection</button></div><p id="ig-status"></p></div><div class="panel"><h2>🔎 Find Instagram Profiles</h2><p>Search public profiles to add them for monitoring.</p><div class="limit-grid"><label>Search<input id="ig-search" placeholder="e.g. kashmir news"></label><label>Min followers<input id="ig-min" type="number" min="0"></label><label>Max followers<input id="ig-max" type="number" min="0"></label></div><button id="ig-find">Search</button><div id="ig-results"></div></div><div class="panel"><h2>⏰ Scheduled Audits</h2><p>Automatically run audits at regular intervals.</p><label class="check"><input id="schedule-enabled" type="checkbox">Enable auto-schedule</label><label>Run every (minutes)<input id="schedule-minutes" type="number" min="5" max="10080" value="60"></label><button id="save-schedule">Save Schedule</button><p id="schedule-next"></p></div><div class="panel"><h2>🧹 Database & History Maintenance</h2><p>Purge previously collected records, past audits, and irrelevant historical scrapes to start clean.</p><button id="purge-past-records-btn" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;padding:8px 14px;border-radius:6px;font-weight:600;cursor:pointer;">🗑️ Purge All Past Audit Records & History</button><p class="muted" style="margin:6px 0 0;font-size:12px;">This permanently clears past records from SQLite without resetting your profile settings or keywords.</p></div>'
+  settings: '<div class="panel" id="settings-policies-panel"><h2>Collection Settings</h2><p>Adjust how many items to fetch, timeout budgets, and page counts per platform.</p><div id="settings-policies"></div><div class="actions"><button id="save-settings-policies" class="primary">Save Settings</button></div></div><div class="panel" id="settings-transcription-panel"><h2>Video & Audio Transcription (WhisperFlow / Whisper)</h2><p>Extract spoken audio dialogue from YouTube videos and Instagram reels to evaluate keyword and entity relevance.</p><div id="transcription-status-box" class="notice-banner" style="background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;color:#166534;margin:12px 0;padding:12px 16px;border-radius:8px;"><strong id="transcription-status-badge">Local Engine: Installed (openai-whisper)</strong><p id="transcription-status-notes" style="margin:4px 0 0;font-size:13px;"></p></div><div class="notice-banner" style="background:#f8fafc;border:1px solid #cbd5e1;border-left:4px solid #0284c7;color:#0f172a;margin:14px 0 12px;padding:12px 16px;border-radius:8px;"><strong>System Protection: Strictly On-Demand Video Processing</strong><p style="margin:4px 0 0;font-size:13px;line-height:1.45;color:#334155;">Audits and general scrapes <strong>never</strong> download or transcribe videos in bulk. That would freeze your system and exhaust RAM/disk. Instead, Watchtower only collects lightweight text metadata. Audio transcription runs <strong>strictly for your desired video only</strong> when you click <strong>\'Transcribe Audio\'</strong> on that specific card, or inspect a single desired video below.</p></div><div class="limit-grid"><label>Engine Mode<select id="transcribe-mode"><option value="whisper">Local Whisper (Runs on this Mac)</option><option value="whisperflow_api">WhisperFlow / OpenAI Cloud API</option></select></label><label>Local Whisper Model<select id="transcribe-model"><option value="tiny">tiny (Fastest, low memory)</option><option value="base" selected>base (Recommended)</option><option value="small">small (Higher accuracy)</option><option value="medium">medium (Best accuracy)</option></select></label><label id="transcribe-key-wrap" style="grid-column:span 2">WhisperFlow / OpenAI API Key (Optional for Cloud Mode)<input id="transcribe-api-key" type="password" placeholder="Enter API key (sk-...) for cloud transcription"></label><label id="transcribe-endpoint-wrap" style="grid-column:span 2">API Endpoint URL (Optional)<input id="transcribe-api-endpoint" placeholder="https://api.openai.com/v1/audio/transcriptions"></label></div><div class="actions" style="margin-top:14px"><button id="save-transcription-btn" class="primary">Save Transcription Settings</button></div><details open style="margin-top:16px;background:#f8fafc;padding:14px 16px;border-radius:8px;border:1px solid #e2e8f0"><summary style="cursor:pointer;font-weight:700;color:var(--blue)">Inspect & Transcribe Single Video Target</summary><p style="margin:6px 0 10px;font-size:13px;color:#475569;">Extract dialogue, threat/relevance scores, and intelligence from <strong>one single desired video</strong> without scraping unrelated feeds.</p><div class="limit-grid" style="margin-top:8px"><label style="grid-column:span 2">Desired Video URL (YouTube, Instagram Reel, etc.)<input id="test-transcribe-url" placeholder="https://www.youtube.com/watch?v=... or https://www.instagram.com/reel/..."></label></div><div class="actions" style="margin-top:10px;display:flex;gap:8px;"><button id="test-transcribe-btn">Transcribe Desired Video</button><button id="save-transcribe-video-btn" class="primary">Transcribe & Save to Records</button></div><div id="test-transcribe-result" style="margin-top:12px" hidden></div></details></div><div class="panel"><h2>Instagram Connection</h2><p>Import your Instaloader session file to enable Instagram monitoring.</p><div class="limit-grid"><label>Username<input id="ig-username" autocomplete="off" placeholder="your_username"></label><label>Session file<input id="ig-session" type="file"></label></div><div class="actions"><button id="ig-configure">Import Session</button><button id="ig-test">Test Connection</button></div><p id="ig-status"></p></div><div class="panel"><h2>Find Instagram Profiles</h2><p>Search public profiles to add them for monitoring.</p><div class="limit-grid"><label>Search<input id="ig-search" placeholder="e.g. kashmir news"></label><label>Min followers<input id="ig-min" type="number" min="0"></label><label>Max followers<input id="ig-max" type="number" min="0"></label></div><button id="ig-find">Search</button><div id="ig-results"></div></div><div class="panel"><h2>Scheduled Audits</h2><p>Automatically run audits at regular intervals in the background.</p><div class="limit-grid"><label class="check" style="grid-column:span 2"><input id="schedule-enabled" type="checkbox"> Enable auto-schedule</label><label style="grid-column:span 2">Frequency<select id="schedule-frequency"><option value="360">Every 6 hours</option><option value="720">Every 12 hours</option><option value="1440" selected>Once daily (every 24 hours)</option><option value="2880">Every 2 days (48 hours)</option><option value="10080">Weekly (7 days)</option><option value="custom">Custom interval</option></select></label><label id="schedule-custom-wrap" style="grid-column:span 2" hidden>Custom interval (minutes)<input id="schedule-minutes" type="number" min="5" max="10080" value="1440"></label></div><div class="actions" style="margin-top:12px"><button id="save-schedule" class="primary">Save Schedule</button></div><div id="schedule-status-card" class="notice-banner" style="margin-top:14px;display:flex;align-items:center;gap:12px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"><span id="schedule-status-dot" class="status-dot"></span><div><strong id="schedule-status-title">Schedule Inactive</strong><p id="schedule-next" style="margin:2px 0 0;font-size:13px;color:var(--text-muted);"></p></div></div></div><div class="panel"><h2>Database & History Maintenance</h2><p>Purge previously collected records, past audits, and irrelevant historical scrapes to start clean.</p><button id="purge-past-records-btn" style="background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;padding:8px 14px;border-radius:6px;font-weight:600;cursor:pointer;">Purge All Past Audit Records & History</button><p class="muted" style="margin:6px 0 0;font-size:12px;">This permanently clears past records from SQLite without resetting your profile settings or keywords.</p></div>'
 };
 
 /* ── Build navigation & views ── */
@@ -232,14 +232,6 @@ async function navigate(view) {
   if (view === 'run') runSummary();
 }
 
-const dimIcons = {
-  geography: '📍',
-  entities: '🏢',
-  keywords: '🏷️',
-  hashtags: '#️⃣',
-  incident_types: '⚠️'
-};
-
 /* ── Profile Management ── */
 function renderDimension(category) {
   const d = state.profile.dimensions[category];
@@ -249,7 +241,7 @@ function renderDimension(category) {
   }
   const card = node('article', undefined, 'dimension'),
         head = node('header'),
-        label = node('label', `${dimIcons[category] || '📁'} ${names[category]}`, 'check'),
+        label = node('label', names[category] || category, 'check'),
         enabled = document.createElement('input');
   enabled.type = 'checkbox';
   enabled.checked = d.enabled;
@@ -258,17 +250,17 @@ function renderDimension(category) {
   const statusBadge = node('span', '', 'dim-status-badge');
   function updateBadge() {
     if (d.enabled && d.values.length > 0) {
-      statusBadge.className = 'dim-status-badge dim-badge-active';
-      statusBadge.textContent = `● Active (${d.values.length})`;
-      card.classList.remove('dim-disabled');
-    } else if (!d.enabled && d.values.length > 0) {
-      statusBadge.className = 'dim-status-badge dim-badge-disabled';
-      statusBadge.textContent = `○ Paused (${d.values.length})`;
-      card.classList.add('dim-disabled');
+      statusBadge.textContent = 'Active';
+      statusBadge.className = 'dim-status-badge active';
+      card.classList.remove('dim-card-paused');
+    } else if (d.values.length > 0 && !d.enabled) {
+      statusBadge.textContent = 'Paused';
+      statusBadge.className = 'dim-status-badge paused';
+      card.classList.add('dim-card-paused');
     } else {
-      statusBadge.className = 'dim-status-badge dim-badge-empty';
-      statusBadge.textContent = `○ 0 active`;
-      card.classList.remove('dim-disabled');
+      statusBadge.textContent = 'Empty';
+      statusBadge.className = 'dim-status-badge empty';
+      card.classList.remove('dim-card-paused');
     }
   }
   updateBadge();
@@ -277,20 +269,19 @@ function renderDimension(category) {
     d.enabled = enabled.checked;
     updateBadge();
     draw();
-    notice('Changes not saved yet — click Save Profile.');
   });
   head.append(label, statusBadge);
   card.append(head);
 
+  const toolbar = node('div', undefined, 'dim-toolbar');
+  const count = node('span', '', 'dim-count');
   const filter = document.createElement('input');
   filter.type = 'search';
-  filter.placeholder = 'Filter ' + names[category].toLowerCase() + '…';
-  card.append(filter);
+  filter.className = 'dim-filter';
+  filter.placeholder = `Filter ${names[category].toLowerCase()}…`;
+  toolbar.append(filter);
 
-  const list = node('div', undefined, 'value-list'), count = node('span', '', 'muted');
-
-  const toolbar = node('div', undefined, 'value-toolbar');
-  toolbar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin:6px 0 8px;font-size:12px;';
+  const list = node('div', undefined, 'values');
   const selAll = node('button', 'Select All', 'small');
   selAll.type = 'button';
   selAll.onclick = () => {
@@ -301,7 +292,7 @@ function renderDimension(category) {
     }
     updateBadge();
     draw();
-    notice('All selected! Click "💾 Save Profile" to apply.');
+    notice('All selected. Click "Save Profile" to apply.');
   };
   const clearAll = node('button', 'Clear All', 'small');
   clearAll.type = 'button';
@@ -309,7 +300,7 @@ function renderDimension(category) {
     d.values = [];
     updateBadge();
     draw();
-    notice('Cleared all! Click "💾 Save Profile" to apply.');
+    notice('Cleared all. Click "Save Profile" to apply.');
   };
   const toolsRight = node('div', undefined, 'actions');
   toolsRight.style.gap = '6px';
@@ -321,8 +312,8 @@ function renderDimension(category) {
     if (!d.enabled && d.values.length > 0) {
       const pausedNotice = node('div', undefined, 'dim-paused-banner');
       const pText = node('span');
-      pText.innerHTML = `⚠️ <strong>${names[category]} is paused.</strong> Category is unchecked in header.`;
-      const activateBtn = node('button', '▶️ Activate This Category', 'small');
+      pText.innerHTML = `<strong>${names[category]} is paused.</strong> Category is unchecked in header.`;
+      const activateBtn = node('button', 'Activate This Category', 'small');
       activateBtn.type = 'button';
       activateBtn.style.cssText = 'align-self:flex-start;background:var(--blue);color:#fff;border:none;border-radius:4px;cursor:pointer;padding:4px 8px;font-weight:600;margin-top:4px;';
       activateBtn.onclick = () => {
@@ -330,7 +321,7 @@ function renderDimension(category) {
         enabled.checked = true;
         updateBadge();
         draw();
-        notice(`✅ ${names[category]} activated! Click "💾 Save Profile" to save.`);
+        notice(`${names[category]} activated. Click "Save Profile" to save.`);
       };
       pausedNotice.append(pText, activateBtn);
       list.append(pausedNotice);
@@ -389,7 +380,7 @@ function renderDimension(category) {
     add.value = '';
     updateBadge();
     draw();
-    notice(`✅ Added and selected "${val}". Click "💾 Save Profile" to save your profile.`);
+    notice(`Added and selected "${val}". Click "Save Profile" to save your profile.`);
   });
   card.append(toolbar, list, add, addAction);
   return card;
@@ -421,8 +412,9 @@ function renderProfile() {
   $('custom-window').hidden = w.hours !== null;
   if (w.start_time) $('window-start').value = localInput(w.start_time);
   if (w.end_time) $('window-end').value = localInput(w.end_time);
-  const rel = p.relevance || { mode: 'defense_focus', exclude_terms: [] };
-  if ($('relevance-mode')) $('relevance-mode').value = rel.mode || 'defense_focus';
+  const rel = p.relevance || { mode: 'keyword_required', exclude_terms: [] };
+  const modeVal = rel.mode === 'defense_focus' ? 'keyword_required' : (rel.mode || 'keyword_required');
+  if ($('relevance-mode')) $('relevance-mode').value = modeVal;
   if ($('relevance-exclude-terms')) $('relevance-exclude-terms').value = (rel.exclude_terms || []).join(', ');
   runSummary();
 }
@@ -434,13 +426,11 @@ function localInput(v) {
 
 function renderPlatformQueries() {
   $('platform-queries').replaceChildren();
-  const platformIcons = { youtube: '📺', instagram: '📷', news: '📰', meta: '👥', web: '🌐' };
   for (const platform of ['youtube', 'instagram', 'news', 'meta', 'web']) {
     const queries = state.profile.platform_queries?.[platform] || [];
     const card = node('article', undefined, 'dimension pq-card');
     const head = node('header');
-    const icon = platformIcons[platform] || '🔍';
-    head.append(node('label', `${icon} ${names[platform]} Queries`, 'check'));
+    head.append(node('label', `${names[platform]} Queries`, 'check'));
     card.append(head);
 
     const tagWrap = node('div', undefined, 'pq-tag-list');
@@ -452,7 +442,7 @@ function renderPlatformQueries() {
         tag.append(node('span', value));
         const removeBtn = document.createElement('button');
         removeBtn.className = 'pq-tag-remove';
-        removeBtn.textContent = '✕';
+        removeBtn.textContent = '×';
         removeBtn.title = 'Remove query';
         removeBtn.addEventListener('click', async () => {
           state.profile.platform_queries[platform] = state.profile.platform_queries[platform].filter(v => v !== value);
@@ -484,7 +474,7 @@ function renderPlatformQueries() {
       input.value = '';
       renderPlatformQueries();
       await saveProfile();
-      notice(`✅ Custom query added for ${names[platform] || platform}!`);
+      notice(`Custom query added for ${names[platform] || platform}.`);
     });
     inputRow.append(input, addBtn);
     card.append(inputRow);
@@ -501,7 +491,7 @@ function renderSaved() {
     box.append(node('h3', names[platform] + ' Sources'));
     for (const value of state.profile.saved_sources[platform] || []) {
       const row = node('div', undefined, 'actions');
-      row.append(node('span', value), action('✕', () => {
+      row.append(node('span', value), action('×', () => {
         state.profile.saved_sources[platform] = state.profile.saved_sources[platform].filter(v => v !== value);
         renderSaved();
       }, 'small'));
@@ -563,7 +553,7 @@ function collectProfile() {
     p.time_window.end_time = end.toISOString();
   }
   p.platform_queries = state.profile.platform_queries || {};
-  const relMode = $('relevance-mode') ? $('relevance-mode').value : 'defense_focus';
+  const relMode = $('relevance-mode') ? $('relevance-mode').value : 'keyword_required';
   const relExcludes = $('relevance-exclude-terms') && $('relevance-exclude-terms').value
     ? $('relevance-exclude-terms').value.split(',').map(s => s.trim()).filter(Boolean)
     : [];
@@ -575,7 +565,7 @@ async function saveProfile() {
   const saved = await api('/api/profile', collectProfile());
   state.profile = saved;
   runSummary();
-  notice('✅ Profile saved successfully!');
+  notice('Profile saved successfully.');
 }
 
 function runSummary() {
@@ -594,7 +584,7 @@ bind('save-settings-policies', async () => { await saveProfile(); renderSettings
 bind('purge-past-records-btn', async () => {
   if (!confirm('Are you sure you want to delete all past audit runs and collected records from the database? This cannot be undone.')) return;
   await api('/api/records/purge', {});
-  notice('✅ All past records and audit history have been purged from the database.');
+  notice('All past records and audit history have been purged from the database.');
   if (state.view === 'history') await history();
   if (state.view === 'records') await search();
 });
@@ -607,7 +597,7 @@ bind('preview-plan', async () => {
   if (planQueriesOpen) {
     container.replaceChildren();
     planQueriesOpen = false;
-    btn.textContent = '👁️ Preview Queries';
+    btn.textContent = 'Preview Queries';
     return;
   }
   await saveProfile();
@@ -637,26 +627,26 @@ bind('preview-plan', async () => {
   if (totalQueries === 0) {
     const emptyBox = node('div', undefined, 'empty-plan-notice');
     emptyBox.style.cssText = 'padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin:8px 0;display:flex;align-items:center;justify-content:space-between;gap:12px;';
-    const msg = node('p', '⚠️ No queries generated. Please ensure at least one platform and category (e.g. Keywords) has active values in Setup Profile.');
+    const msg = node('p', 'No queries generated. Please ensure at least one platform and category (e.g. Keywords) has active values in Setup Profile.');
     msg.style.cssText = 'margin:0;color:#92400e;font-size:13px;';
-    const goBtn = node('button', '⚙️ Setup Profile', 'small primary');
+    const goBtn = node('button', 'Setup Profile', 'small primary');
     goBtn.type = 'button';
     goBtn.onclick = () => navigate('profile');
     emptyBox.append(msg, goBtn);
     container.append(emptyBox);
   }
   planQueriesOpen = true;
-  btn.textContent = '🙈 Hide Queries';
+  btn.textContent = 'Hide Queries';
 });
 
 bind('run-audit', async () => {
   planQueriesOpen = false;
   $('query-plan').replaceChildren();
-  $('preview-plan').textContent = '👁️ Preview Queries';
+  $('preview-plan').textContent = 'Preview Queries';
   await saveProfile();
   const r = await api('/api/run', {});
   state.selectedRun = r.run_id;
-  notice('🚀 Audit started! All platforms running in parallel. Results will appear below.');
+  notice('Audit started. All platforms running in parallel. Results will appear below.');
   await poll();
 });
 
@@ -701,20 +691,20 @@ bind('clear-all-values-btn', async () => {
     incident_types: await api('/api/values/incident_types')
   };
   renderProfile();
-  notice('✅ All saved queries cleared! You now have a fresh, blank profile.');
+  notice('All saved queries cleared. You now have a fresh, blank profile.');
 });
 
 bind('related-suggest-btn', async () => {
   const text = $('related-text').value.trim();
   if (!text || text.length < 20) {
-    notice('⚠️ Please paste or upload at least 20 characters of news text first to suggest anchors.');
+    notice('Please paste or upload at least 20 characters of news text first to suggest anchors.');
     return;
   }
   try {
     const res = await api('/api/related/suggest-anchors', { text });
     if (res.anchors && res.anchors.length) {
       $('related-anchors').value = res.anchors.slice(0, 6).join('\n');
-      notice(`✅ Auto-suggested ${res.anchors.length} anchor terms from the news text!`);
+      notice(`Auto-suggested ${res.anchors.length} anchor terms from the news text.`);
     } else {
       notice('Could not extract distinguishing anchors. Please type 2-8 anchor terms manually.');
     }
@@ -726,11 +716,11 @@ bind('related-suggest-btn', async () => {
 bind('related-preview', async () => {
   const payload = relatedPayload();
   if (!payload.seed.text || payload.seed.text.length < 20) {
-    notice('⚠️ Paste or upload at least 20 characters of news text.');
+    notice('Paste or upload at least 20 characters of news text.');
     return;
   }
   if (payload.seed.anchors.length < 2) {
-    notice('⚠️ Enter at least 2 distinguishing anchor terms (names, places, incident).');
+    notice('Enter at least 2 distinguishing anchor terms (names, places, incident).');
     return;
   }
   try {
@@ -741,7 +731,7 @@ bind('related-preview', async () => {
     Object.entries(result.queries || {}).forEach(([p, queries]) => {
       if (queries.length) {
         count += queries.length;
-        box.append(node('h4', `${names[p] || p} (${queries.length} queries)`), ...queries.map(q => node('p', `🔎 ${q.text}`)));
+        box.append(node('h4', `${names[p] || p} (${queries.length} queries)`), ...queries.map(q => node('p', q.text)));
       }
     });
     if (count === 0) {
@@ -755,11 +745,11 @@ bind('related-preview', async () => {
 bind('related-run', async () => {
   const payload = relatedPayload();
   if (!payload.seed.text || payload.seed.text.length < 20) {
-    notice('⚠️ Paste or upload at least 20 characters of news text.');
+    notice('Paste or upload at least 20 characters of news text.');
     return;
   }
   if (payload.seed.anchors.length < 2) {
-    notice('⚠️ Enter at least 2 distinguishing anchor terms (names, places, incident).');
+    notice('Enter at least 2 distinguishing anchor terms (names, places, incident).');
     return;
   }
   try {
@@ -767,9 +757,9 @@ bind('related-run', async () => {
     state.selectedRun = result.run_id;
     $('related-results').replaceChildren();
     const loadingCard = node('div', undefined, 'panel');
-    loadingCard.innerHTML = '<h3>⏳ Scraping all platforms for related coverage...</h3><p class="muted">Scanning News, YouTube, Web, and social sources for matching anchor terms...</p>';
+    loadingCard.innerHTML = '<h3>Scraping all platforms for related coverage...</h3><p class="muted">Scanning News, YouTube, Web, and social sources for matching anchor terms...</p>';
     $('related-results').append(loadingCard);
-    notice('🚀 Related coverage search started! Scraping platforms now...');
+    notice('Related coverage search started. Scraping platforms now...');
 
     const pollRelated = async () => {
       if (!document.contains($('related-results'))) return;
@@ -787,7 +777,7 @@ bind('related-run', async () => {
         }
         const records = await api('/api/records?run_id=' + encodeURIComponent(result.run_id));
         const relevant = records.filter(i => i.analysis.relevant).sort((a, b) => (b.analysis.relevance_score || 0) - (a.analysis.relevance_score || 0));
-        box.append(node('p', `🎯 Found ${relevant.length} related candidates (${records.length - relevant.length} records filtered out).`));
+        box.append(node('p', `Found ${relevant.length} related candidates (${records.length - relevant.length} records filtered out).`));
         if (relevant.length === 0) {
           box.append(node('p', 'No related candidates found matching all anchors across selected platforms.', 'muted'));
         } else {
@@ -827,12 +817,12 @@ setTimeout(() => {
         const res = await api('/api/related/suggest-anchors', { text });
         if (res.anchors && res.anchors.length) {
           $('related-anchors').value = res.anchors.slice(0, 6).join('\n');
-          notice(`✅ Loaded "${file.name}" and auto-suggested ${res.anchors.length} anchors!`);
+          notice(`Loaded "${file.name}" and auto-suggested ${res.anchors.length} anchors.`);
         } else {
-          notice(`✅ Loaded "${file.name}". Please enter 2-8 anchor terms below.`);
+          notice(`Loaded "${file.name}". Please enter 2-8 anchor terms below.`);
         }
       } catch {
-        notice(`✅ Loaded "${file.name}". Please enter 2-8 anchor terms below.`);
+        notice(`Loaded "${file.name}". Please enter 2-8 anchor terms below.`);
       }
     });
   }
@@ -859,8 +849,8 @@ function summaryCard(report) {
 
   const exportRow = node('div', undefined, 'actions');
   exportRow.append(
-    action('📄 Download CSV', () => download(report.id, 'normalized', 'csv')),
-    action('🖨️ Print / Save PDF', () => { window.print(); })
+    action('Download CSV', () => download(report.id, 'normalized', 'csv')),
+    action('Print / Save PDF', () => { window.print(); })
   );
   box.append(exportRow);
   return box;
@@ -871,9 +861,11 @@ function platformCards(target, report) {
   for (const platform of ['youtube', 'instagram', 'news', 'x', 'reddit', 'meta', 'web']) {
     const a = report?.platforms?.[platform], card = node('article', undefined, 'platform');
     const status = a?.status || 'disabled';
-    const statusLabel = { complete: '✅', failed: '❌', partial: '⚠️', running: '⏳', disabled: '—' }[status] || '';
+    const header = node('div', undefined, 'platform-card-header');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;';
+    header.append(node('h3', names[platform]), pill(status));
     card.append(
-      node('h3', `${statusLabel} ${names[platform]}`),
+      header,
       node('p', `${a?.metrics?.items_checked ?? 0} items · ${a?.metrics?.relevant_items ?? 0} relevant`),
       action('View details', async () => {
         await navigate('platforms');
@@ -901,17 +893,17 @@ async function platformReport(runId, platform) {
 
   const statGrid = node('div', undefined, 'platform-grid');
   statGrid.append(
-    statCard('Items Scanned', a.metrics.items_checked, '📊'),
-    statCard('Relevant Items', a.metrics.relevant_items, '🎯'),
-    statCard('Sources Found', a.metrics.sources_discovered, '🔍'),
-    statCard('Duration', a.duration_seconds + 's', '⏱️')
+    statCard('Items Scanned', a.metrics.items_checked),
+    statCard('Relevant Items', a.metrics.relevant_items),
+    statCard('Sources Found', a.metrics.sources_discovered),
+    statCard('Duration', a.duration_seconds + 's')
   );
   box.append(statGrid);
 
   if (a.errors?.length) {
     const issueBox = node('div', undefined, 'notice-banner');
     issueBox.style.cssText = 'background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;color:#991b1b;margin:12px 0;padding:12px 16px;border-radius:8px;';
-    issueBox.textContent = '⚠️ ' + a.errors.map(e => errorMessages[e] || e).join(' · ');
+    issueBox.textContent = a.errors.map(e => errorMessages[e] || e).join(' · ');
     box.append(issueBox);
   }
 
@@ -920,15 +912,15 @@ async function platformReport(runId, platform) {
     if (snippets.length > 0) {
       const banner = node('div');
       banner.style.cssText = 'background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;color:#92400e;margin:12px 0;padding:12px 16px;border-radius:8px;font-size:14px;';
-      banner.textContent = `ℹ️ ${snippets.length} of ${a.records.length} web results are short search snippets. Increase "Pages to fetch" in Settings to get full article text.`;
+      banner.textContent = `${snippets.length} of ${a.records.length} web results are short search snippets. Increase "Pages to fetch" in Settings to get full article text.`;
       box.append(banner);
     }
   }
 
   const exportRow = node('div', undefined, 'actions');
   exportRow.append(
-    action('📄 Download CSV', () => download(runId, 'normalized', 'csv')),
-    action('🖨️ Print / Save PDF', () => { window.print(); })
+    action('Download CSV', () => download(runId, 'normalized', 'csv')),
+    action('Print / Save PDF', () => { window.print(); })
   );
   box.append(exportRow);
 
@@ -936,7 +928,7 @@ async function platformReport(runId, platform) {
   const filteredOut = (a.records || []).filter(r => !r.analysis?.relevant);
 
   if (relevant.length > 0) {
-    box.append(node('h3', `🎯 Relevant Records (${relevant.length})`));
+    box.append(node('h3', `Relevant Records (${relevant.length})`));
     const recordsGrid = node('div', undefined, 'dimension-grid');
     renderRecords(recordsGrid, relevant, true);
     box.append(recordsGrid);
@@ -949,7 +941,7 @@ async function platformReport(runId, platform) {
     details.style.cssText = 'margin-top:20px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;';
     const summary = document.createElement('summary');
     summary.style.cssText = 'cursor:pointer;font-weight:600;color:#475569;';
-    summary.textContent = `📋 Other Scanned Items (${filteredOut.length}) — Filtered Out as Old / Non-Relevant`;
+    summary.textContent = `Other Scanned Items (${filteredOut.length}) — Filtered Out as Old / Non-Relevant`;
     details.append(summary);
     details.append(node('p', 'These items were scanned by the collector but were evaluated as Old / Stale or lacking sufficient keyword relevance.', 'muted'));
     const filteredGrid = node('div', undefined, 'dimension-grid');
@@ -961,12 +953,14 @@ async function platformReport(runId, platform) {
   $('platform-report').replaceChildren(box);
 }
 
-function statCard(label, value, icon) {
+function statCard(label, value) {
   const card = node('div', undefined, 'panel stat-card');
-  card.style.cssText = 'text-align: center; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #e2e8f0; background: #fafafa;';
+  card.style.cssText = 'text-align: center; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #e2e8f0; background: #fafafa; border-radius: 10px;';
   const val = node('div', value, 'stat-value');
-  val.style.cssText = 'font-size: 28px; font-weight: 800; margin: 8px 0; color: #0f172a;';
-  card.append(node('div', icon, 'stat-icon'), val, node('div', label, 'stat-label'));
+  val.style.cssText = 'font-size: 28px; font-weight: 800; margin: 4px 0 6px; color: #0f172a;';
+  const lbl = node('div', label, 'stat-label');
+  lbl.style.cssText = 'font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b;';
+  card.append(val, lbl);
   return card;
 }
 
@@ -978,24 +972,23 @@ function recordCard(item) {
 
   // Platform & account row
   const topRow = node('div', undefined, 'result-top');
-  const platformIcon = { youtube: '▶️', instagram: '📷', news: '📰', web: '🌐', meta: '👤' }[e.platform] || '📌';
-  topRow.textContent = `${platformIcon} ${names[e.platform] || e.platform} · ${e.account || e.source_id}`;
+  topRow.textContent = `${names[e.platform] || e.platform} · ${e.account || e.source_id}`;
   card.append(topRow, title);
 
   // Status pills
   card.append(pill(a.time_classification, a.time_classification));
-  if (a.relevant) card.append(node('span', '🎯 Relevant', 'pill complete'));
+  if (a.relevant) card.append(node('span', 'Relevant', 'pill complete'));
 
   // Snippet vs full-text badge for web
   if (e.platform === 'web') {
     const scope = e.metadata?.collection_scope;
-    if (scope === 'search_snippet_only') card.append(node('span', '🔍 Snippet only', 'pill snippet'));
-    else if (scope === 'public_page_text') card.append(node('span', '📄 Full article', 'pill fulltext'));
+    if (scope === 'search_snippet_only') card.append(node('span', 'Snippet only', 'pill snippet'));
+    else if (scope === 'public_page_text') card.append(node('span', 'Full article', 'pill fulltext'));
   }
 
   // Transcript badge
   if (e.metadata?.transcript_text) {
-    card.append(node('span', '🎙️ Has spoken transcript', 'pill transcript'));
+    card.append(node('span', 'Spoken transcript', 'pill transcript'));
   }
 
   // Content preview
@@ -1006,7 +999,7 @@ function recordCard(item) {
   if (e.metadata?.transcript_text) {
     const tBox = node('div', undefined, 'transcript-box');
     const preview = e.metadata.transcript_text.length > 250 ? e.metadata.transcript_text.slice(0, 250) + '…' : e.metadata.transcript_text;
-    tBox.textContent = '🎙️ Transcript: ' + preview;
+    tBox.textContent = 'Transcript: ' + preview;
     card.append(tBox);
   }
 
@@ -1016,13 +1009,13 @@ function recordCard(item) {
   // Matched terms (simplified)
   const matchedParts = Object.entries(a.matches || {}).filter(([, v]) => Array.isArray(v) && v.length > 0).map(([k, v]) => `${names[k]}: ${v.join(', ')}`);
   if (matchedParts.length) {
-    card.append(node('p', '🎯 Matched: ' + matchedParts.join(' · '), 'muted'));
+    card.append(node('p', 'Matched: ' + matchedParts.join(' · '), 'muted'));
   }
 
   if (a.related) {
     const relBox = node('div', undefined, 'notice-banner');
     relBox.style.cssText = 'background:#f0fdf4;border:1px solid #bbf7d0;border-left:4px solid #22c55e;color:#166534;margin:8px 0;padding:8px 12px;border-radius:6px;font-size:12.5px;';
-    relBox.innerHTML = `<strong>📰 Related Coverage Score: ${a.related.score}</strong> · <em>${a.related.relationship}</em><br>${(a.reasons || []).join(' · ')}`;
+    relBox.innerHTML = `<strong>Related Coverage Score: ${a.related.score}</strong> · <em>${a.related.relationship}</em><br>${(a.reasons || []).join(' · ')}`;
     card.append(relBox);
   }
 
@@ -1030,35 +1023,35 @@ function recordCard(item) {
   const cardActions = node('div', undefined, 'actions');
   cardActions.style.marginTop = '10px';
   cardActions.append(
-    action('🔗 Open original', () => { window.open(e.url, '_blank'); }),
-    action('🖨️ Print Record / PDF', () => printRecordDossier(item))
+    action('Open original', () => { window.open(e.url, '_blank'); }),
+    action('Print Record / PDF', () => printRecordDossier(item))
   );
 
   const isVideoRecord = e.platform === 'youtube' || e.media?.[0]?.type === 'video' || e.metadata?.is_video;
   if (isVideoRecord && !e.metadata?.transcript_text) {
-    const transcribeBtn = action('🎙️ Transcribe Audio', async () => {
+    const transcribeBtn = action('Transcribe Audio', async () => {
       transcribeBtn.disabled = true;
-      transcribeBtn.textContent = '⏳ Transcribing...';
+      transcribeBtn.textContent = 'Transcribing...';
       try {
         const res = await api('/api/transcription/transcribe', { event_id: e.id, url: e.url });
         if (res.status === 'collected' && res.text) {
           e.metadata = e.metadata || {};
           e.metadata.transcript_text = res.text;
           e.metadata.transcript_status = 'collected';
-          transcribeBtn.textContent = '✅ Transcribed';
+          transcribeBtn.textContent = 'Transcribed';
           const tBox = node('div', undefined, 'transcript-box');
-          tBox.textContent = '🎙️ Transcript: ' + (res.text.length > 250 ? res.text.slice(0, 250) + '…' : res.text);
+          tBox.textContent = 'Transcript: ' + (res.text.length > 250 ? res.text.slice(0, 250) + '…' : res.text);
           card.insertBefore(tBox, cardActions);
-          notice('✅ Spoken audio transcribed & relevance updated!');
+          notice('Spoken audio transcribed and relevance updated.');
         } else {
           transcribeBtn.disabled = false;
-          transcribeBtn.textContent = '🎙️ Transcribe Audio';
-          notice('⚠️ ' + (res.error || 'Could not transcribe'));
+          transcribeBtn.textContent = 'Transcribe Audio';
+          notice(res.error || 'Could not transcribe');
         }
       } catch (err) {
         transcribeBtn.disabled = false;
-        transcribeBtn.textContent = '🎙️ Transcribe Audio';
-        notice('❌ Error: ' + err.message);
+        transcribeBtn.textContent = 'Transcribe Audio';
+        notice('Error: ' + err.message);
       }
     });
     cardActions.append(transcribeBtn);
@@ -1101,11 +1094,19 @@ async function history() {
   $('run-list').replaceChildren();
   if (!runs.length) $('run-list').append(empty('No past audits.'));
   for (const run of runs) {
-    const statusIcon = { complete: '✅', failed: '❌', partial: '⚠️' }[run.status] || '📋';
-    $('run-list').append(action(`${statusIcon} ${formatDate(run.started_at)}`, async () => {
+    const btn = document.createElement('button');
+    btn.className = 'history-item-btn' + (state.selectedRun === run.id ? ' active' : '');
+    btn.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;margin-bottom:6px;text-align:left;border-radius:8px;';
+    const dateSpan = node('span', formatDate(run.started_at));
+    const statusPill = pill(run.status);
+    btn.append(dateSpan, statusPill);
+    btn.onclick = async () => {
       state.selectedRun = run.id;
+      for (const b of $('run-list').querySelectorAll('button')) b.classList.remove('active');
+      btn.classList.add('active');
       await historyReport(run.id);
-    }));
+    };
+    $('run-list').append(btn);
   }
   if (state.selectedRun) await historyReport(state.selectedRun);
 }
@@ -1113,13 +1114,19 @@ async function history() {
 async function historyReport(id) {
   const r = await api('/api/audits/' + id), box = summaryCard(r);
   if (!r.platforms) return;
+  const platGrid = node('div', undefined, 'platform-grid');
+  platGrid.style.marginTop = '14px';
   for (const [p, a] of Object.entries(r.platforms)) {
-    const statusIcon = { complete: '✅', failed: '❌', partial: '⚠️', disabled: '—' }[a.status] || '';
-    box.append(action(`${statusIcon} ${names[p]} — ${a.metrics?.relevant_items ?? 0} relevant`, async () => {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 14px;';
+    btn.append(node('span', `${names[p] || p} (${a.metrics?.relevant_items ?? 0} relevant)`), pill(a.status));
+    btn.onclick = async () => {
       await navigate('platforms');
       await platformReport(id, p);
-    }));
+    };
+    platGrid.append(btn);
   }
+  box.append(platGrid);
   $('history-report').replaceChildren(box);
 }
 
@@ -1228,7 +1235,7 @@ function printRecordDossier(item) {
   addMeta('Published Time (IST)', formatDate(e.published_at));
   addMeta('Collection Time (IST)', formatDate(e.collected_at));
   addMeta('Classification', a.time_classification || 'UNKNOWN');
-  addMeta('Relevance Status', a.relevant ? '🎯 RELEVANT' : 'Non-relevant');
+  addMeta('Relevance Status', a.relevant ? 'Relevant' : 'Non-relevant');
   addMeta('Original URL', e.url);
   addMeta('Evidence Score / Level', a.evidence_level || (a.relevant ? 'MATCHED' : 'LOW'));
   dossier.append(metaGrid);
@@ -1258,7 +1265,7 @@ function printRecordDossier(item) {
   // Spoken Transcript (WhisperFlow / Subtitles)
   if (e.metadata?.transcript_text) {
     const transSec = node('div', undefined, 'dossier-section');
-    transSec.append(node('div', '🎙️ Spoken Audio Transcript (WhisperFlow / Subtitles)', 'dossier-section-title'));
+    transSec.append(node('div', 'Spoken Audio Transcript (WhisperFlow / Subtitles)', 'dossier-section-title'));
     const transBox = node('div', e.metadata.transcript_text, 'dossier-transcript-box');
     transSec.append(transBox);
     dossier.append(transSec);
@@ -1340,12 +1347,12 @@ async function renderTranscriptionSettings() {
 
   if (badge && banner) {
     if (s.local_installed) {
-      badge.textContent = `✅ Local Whisper Engine: Installed (openai-whisper)` + (s.ffmpeg_installed ? ' · ffmpeg Ready' : ' · (ffmpeg needed for local audio; or use Cloud API)');
+      badge.textContent = `Local Whisper Engine: Installed (openai-whisper)` + (s.ffmpeg_installed ? ' · ffmpeg Ready' : ' · (ffmpeg needed for local audio; or use Cloud API)');
       banner.style.background = s.ffmpeg_installed ? '#f0fdf4' : '#fffbeb';
       banner.style.borderColor = s.ffmpeg_installed ? '#bbf7d0' : '#fde68a';
       banner.style.color = s.ffmpeg_installed ? '#166534' : '#92400e';
     } else {
-      badge.textContent = `⚠️ Local Whisper not installed · Using Cloud API or Subtitles`;
+      badge.textContent = `Local Whisper not installed · Using Cloud API or Subtitles`;
       banner.style.background = '#fffbeb';
       banner.style.borderColor = '#fde68a';
       banner.style.color = '#92400e';
@@ -1373,7 +1380,7 @@ bind('save-transcription-btn', async () => {
 
   await api('/api/transcription/configure', payload);
   await renderTranscriptionSettings();
-  notice('✅ Transcription settings saved (Strict On-Demand Mode)!');
+  notice('Transcription settings saved (Strict On-Demand Mode).');
 });
 
 async function runSingleVideoTranscription(saveToRecords) {
@@ -1381,17 +1388,17 @@ async function runSingleVideoTranscription(saveToRecords) {
   if (!url) throw new Error('Enter a video or audio URL first');
   const resDiv = $('test-transcribe-result');
   resDiv.hidden = false;
-  resDiv.replaceChildren(node('p', '⏳ Processing and transcribing audio for desired video (may take 10-30s)...', 'muted'));
+  resDiv.replaceChildren(node('p', 'Processing and transcribing audio for desired video (may take 10-30s)...', 'muted'));
   try {
     const res = await api('/api/transcription/transcribe', { url, save: saveToRecords });
     resDiv.replaceChildren();
     if (res.status === 'collected' && res.text) {
       const box = node('div', undefined, 'transcript-box');
-      box.textContent = '🎙️ Transcript: ' + res.text;
+      box.textContent = 'Transcript: ' + res.text;
       
       const successMsg = saveToRecords 
-        ? '✅ Transcribed & Saved to Watchtower Records (' + (res.provider || 'Whisper') + ')!'
-        : '✅ Transcription successful (' + (res.provider || 'Whisper') + ')!';
+        ? 'Transcribed & Saved to Watchtower Records (' + (res.provider || 'Whisper') + ')'
+        : 'Transcription successful (' + (res.provider || 'Whisper') + ')';
       
       resDiv.append(node('p', successMsg, 'status'), box);
       
@@ -1404,18 +1411,18 @@ async function runSingleVideoTranscription(saveToRecords) {
       }
 
       if (saveToRecords) {
-        const viewBtn = action('📁 View in Records', () => navigate('records'), 'primary');
+        const viewBtn = action('View in Records', () => navigate('records'), 'primary');
         viewBtn.style.marginTop = '8px';
         resDiv.append(viewBtn);
       }
-      notice('✅ Desired video transcribed successfully!');
+      notice('Desired video transcribed successfully.');
     } else {
-      resDiv.append(node('p', '⚠️ ' + (res.error || 'No transcript generated'), 'empty'));
-      notice('⚠️ ' + (res.error || 'No transcript generated'));
+      resDiv.append(node('p', (res.error || 'No transcript generated'), 'empty'));
+      notice(res.error || 'No transcript generated');
     }
   } catch (err) {
-    resDiv.replaceChildren(node('p', '❌ ' + err.message, 'empty'));
-    notice('❌ ' + err.message);
+    resDiv.replaceChildren(node('p', 'Error: ' + err.message, 'empty'));
+    notice('Error: ' + err.message);
   }
 }
 
@@ -1439,13 +1446,13 @@ bind('ig-configure', async () => {
   await api('/api/instagram/configure', { username: $('ig-username').value, session_data: btoa(binary) });
   $('ig-session').value = '';
   await instagramStatus();
-  notice('✅ Instagram session imported! Test the connection to verify.');
+  notice('Instagram session imported. Test the connection to verify.');
 });
 
 bind('ig-test', async () => {
   $('ig-status').textContent = 'Testing…';
   const r = await api('/api/instagram/test', {});
-  $('ig-status').textContent = r.error ? (errorMessages[r.error] || r.error) : '✅ ' + r.status;
+  $('ig-status').textContent = r.error ? (errorMessages[r.error] || r.error) : 'Connected: ' + r.status;
 });
 
 bind('ig-find', async () => {
@@ -1463,24 +1470,62 @@ bind('ig-find', async () => {
       link('@' + p.username + ' · ' + p.display_name, p.url),
       node('p', p.biography),
       table([['Followers', p.followers?.toLocaleString('en-IN')], ['Posts', p.post_count]]),
-      action('➕ Monitor this account', async () => {
+      action('Monitor this account', async () => {
         state.profile.saved_sources.instagram = [...new Set([...(state.profile.saved_sources.instagram || []), p.username])];
         await saveProfile();
         renderSaved();
-        notice(`✅ @${p.username} added to monitoring!`);
+        notice(`@${p.username} added to monitoring.`);
       })
     );
     $('ig-results').append(c);
   }
 });
 
-bind('save-schedule', async () => {
-  const s = await api('/api/schedule', {
-    enabled: $('schedule-enabled').checked,
-    interval_minutes: Number($('schedule-minutes').value)
+function updateScheduleDisplay(s) {
+  if (!s) return;
+  const dot = $('schedule-status-dot');
+  const title = $('schedule-status-title');
+  const next = $('schedule-next');
+  if (s.enabled) {
+    if (dot) dot.className = 'status-dot active';
+    if (title) title.textContent = 'Auto-Schedule Active';
+    if (next) next.textContent = s.next_run_at ? 'Next run scheduled for: ' + formatDate(new Date(s.next_run_at * 1000).toISOString()) : 'Waiting for next run cycle';
+  } else {
+    if (dot) dot.className = 'status-dot inactive';
+    if (title) title.textContent = 'Auto-Schedule Disabled';
+    if (next) next.textContent = 'Audits will only run when initiated manually.';
+  }
+}
+
+if ($('schedule-frequency')) {
+  $('schedule-frequency').addEventListener('change', () => {
+    const isCustom = $('schedule-frequency').value === 'custom';
+    $('schedule-custom-wrap').hidden = !isCustom;
+    if (!isCustom) {
+      $('schedule-minutes').value = $('schedule-frequency').value;
+    }
   });
-  $('schedule-next').textContent = s.next_run_at ? 'Next run: ' + formatDate(new Date(s.next_run_at * 1000).toISOString()) : 'Schedule disabled';
-  notice('✅ Schedule saved.');
+}
+
+bind('save-schedule', async () => {
+  const enabled = $('schedule-enabled').checked;
+  const freq = $('schedule-frequency') ? $('schedule-frequency').value : '1440';
+  let minutes = 1440;
+  if (freq === 'custom') {
+    minutes = Number($('schedule-minutes').value);
+  } else {
+    minutes = Number(freq);
+  }
+  if (isNaN(minutes) || minutes < 5 || minutes > 10080) {
+    notice('Interval must be between 5 and 10080 minutes.');
+    return;
+  }
+  const s = await api('/api/schedule', {
+    enabled,
+    interval_minutes: minutes
+  });
+  updateScheduleDisplay(s);
+  notice('Schedule saved successfully.');
 });
 
 $('close-dialog').addEventListener('click', () => $('detail-dialog').close());
@@ -1491,8 +1536,8 @@ async function poll() {
   state.polling = true;
   try {
     state.status = await api('/api/status');
-    $('run-state').textContent = state.status.running ? '⏳ Audit running' : '✅ Ready';
-    $('run-state').className = 'pill ' + (state.status.running ? 'running' : 'complete');
+    $('run-state').textContent = state.status.running ? 'Audit running' : 'Ready';
+    $('run-state').className = 'pill ' + (state.status.running ? 'running' : 'ready');
     $('run-audit').disabled = state.status.running;
     const runs = await api('/api/audits');
     if (runs.length) {
@@ -1505,8 +1550,7 @@ async function poll() {
         $('live-report').replaceChildren(summaryCard(state.latest));
         if (state.latest.platforms) {
           for (const [p, a] of Object.entries(state.latest.platforms)) {
-            const icon = { complete: '✅', failed: '❌', partial: '⚠️', running: '⏳' }[a.status] || '';
-            $('live-report').append(node('p', `${icon} ${names[p]}: ${a.metrics.items_checked} items, ${a.metrics.relevant_items} relevant`));
+            $('live-report').append(node('p', `${names[p]}: ${a.metrics.items_checked} items, ${a.metrics.relevant_items} relevant`));
           }
         }
       }
@@ -1529,9 +1573,22 @@ async function init() {
     state.values[category] = await api('/api/values/' + category);
   renderProfile();
   await poll();
-  if (state.status) {
-    $('schedule-enabled').checked = state.status.schedule.enabled;
-    $('schedule-minutes').value = state.status.schedule.interval_minutes;
+  if (state.status?.schedule) {
+    const s = state.status.schedule;
+    if ($('schedule-enabled')) $('schedule-enabled').checked = s.enabled;
+    const minutes = s.interval_minutes || 1440;
+    if ($('schedule-minutes')) $('schedule-minutes').value = minutes;
+    const presets = ['360', '720', '1440', '2880', '10080'];
+    if ($('schedule-frequency')) {
+      if (presets.includes(String(minutes))) {
+        $('schedule-frequency').value = String(minutes);
+        if ($('schedule-custom-wrap')) $('schedule-custom-wrap').hidden = true;
+      } else {
+        $('schedule-frequency').value = 'custom';
+        if ($('schedule-custom-wrap')) $('schedule-custom-wrap').hidden = false;
+      }
+    }
+    updateScheduleDisplay(s);
   }
   setInterval(poll, 2500);
 }
@@ -1831,7 +1888,7 @@ function renderScrapedProfile(p) {
   const nameHeading = node('h2', p.display_name || p.username, 'ig-profile-name');
   nameHeading.append(link(` @${p.username}`, p.url));
   if (p.verified_account) {
-    const v = node('span', ' ✔ Verified', 'pill complete');
+    const v = node('span', 'Verified', 'pill complete');
     v.style.marginLeft = '8px';
     nameHeading.append(v);
   }
@@ -1864,22 +1921,22 @@ function renderScrapedPosts(records) {
       img.referrerPolicy = 'no-referrer';
       preview.append(img);
     } else {
-      preview.append(node('span', isVideo ? '🎬 Video' : '📷 Photo', 'muted'));
+      preview.append(node('span', isVideo ? 'Video' : 'Photo', 'muted'));
     }
-    preview.append(node('span', isVideo ? '🎬 Video' : '📷 Photo', 'ig-badge'));
+    preview.append(node('span', isVideo ? 'Video' : 'Photo', 'ig-badge'));
     const body = node('div', undefined, 'ig-post-body');
     const meta = node('div', undefined, 'ig-post-meta');
     meta.append(
-      link(`🔗 ${post.shortcode}`, `https://www.instagram.com/p/${post.shortcode}/`),
+      link(post.shortcode, `https://www.instagram.com/p/${post.shortcode}/`),
       node('span', formatDate(post.published_at))
     );
     const caption = node('p', post.caption || 'No caption text', 'ig-post-caption');
     const eng = node('div', undefined, 'ig-post-engagement');
-    eng.innerHTML = `<span>❤️ ${(post.engagement?.likes ?? 0).toLocaleString()} likes</span><span>💬 ${(post.engagement?.comments ?? 0).toLocaleString()} comments</span>`;
+    eng.innerHTML = `<span><strong>${(post.engagement?.likes ?? 0).toLocaleString()}</strong> likes</span> · <span><strong>${(post.engagement?.comments ?? 0).toLocaleString()}</strong> comments</span>`;
     const postActions = node('div', undefined, 'actions');
     postActions.style.marginTop = '10px';
     postActions.append(
-      action('🖨️ Print / PDF', () => printScrapedPost(post)),
+      action('Print / PDF', () => printScrapedPost(post)),
       action('Inspect Raw', () => showRaw(`Post ${post.shortcode}`, post)),
       action('Copy Link', () => {
         navigator.clipboard.writeText(`https://www.instagram.com/p/${post.shortcode}/`);

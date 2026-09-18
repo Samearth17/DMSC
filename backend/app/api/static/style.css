@@ -328,11 +328,79 @@ header {
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   letter-spacing: 0.02em;
 }
 
-.pill.complete {
+.pill.complete::before,
+.pill.ready::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pill.failed::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pill.partial::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pill.running::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  display: inline-block;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  animation: pulse-blue 1.5s infinite;
+}
+
+@keyframes pulse-blue {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+  70% { box-shadow: 0 0 0 5px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  background: var(--line-strong);
+}
+
+.status-dot.active {
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+  animation: pulse 2s infinite;
+}
+
+.status-dot.inactive {
+  background: #94a3b8;
+}
+
+.pill.complete, .pill.ready {
   background: #ecfdf5;
   color: #065f46;
   border-color: #a7f3d0;
@@ -344,19 +412,22 @@ header {
   border-color: #fecaca;
 }
 
-.pill.partial, .pill.running {
+.pill.partial {
   background: #fffbeb;
   color: #92400e;
   border-color: #fde68a;
 }
 
 .pill.running {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
   animation: subtle-pulse 1.5s ease-in-out infinite alternate;
 }
 
 @keyframes subtle-pulse {
   from { opacity: 0.85; }
-  to { opacity: 1; filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.35)); }
+  to { opacity: 1; filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.25)); }
 }
 
 /* Web & Audio badges */

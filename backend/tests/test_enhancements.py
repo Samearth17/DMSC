@@ -361,7 +361,56 @@ class EnhancementsTests(unittest.TestCase):
             self.assertTrue(ev_analysis['relevant'])
             self.assertEqual(ev_analysis['decision'], 'related_candidate')
 
+    def test_domain_agnostic_keyword_required_relevance(self):
+        # Disaster / non-defense monitoring profile
+        profile = Profile.parse({
+            'name': 'Disaster Response Monitor',
+            'platforms': {'news': True},
+            'dimensions': {
+                'geography': {'enabled': True, 'values': ['Odisha', 'Puri']},
+                'keywords': {'enabled': True, 'values': ['cyclone', 'relief camps']}
+            },
+            'relevance': {'mode': 'keyword_required', 'exclude_terms': ['shopping', 'tourism']}
+        })
+        self.assertEqual(profile.relevance['mode'], 'keyword_required')
+
+        # 1. Event with location + keyword signal -> Relevant
+        ev_relevant = WatchtowerEvent(
+            platform='news', source_type='feed', source_id='feed-1', item_id='item-1',
+            account='DisasterDesk', title='Cyclone warning issued',
+            content='Severe cyclone alert issued for Odisha coastal belt; relief camps activated.',
+            url='https://example.com/cyclone-1'
+        )
+        res_rel = analyze(ev_relevant, profile)
+        self.assertTrue(res_rel['relevant'])
+        self.assertIn('keywords', res_rel['matches'])
+        self.assertIn('geography', res_rel['matches'])
+
+        # 2. Event with location only, no topic keyword -> Irrelevant (lacks topic signal)
+        ev_loc_only = WatchtowerEvent(
+            platform='news', source_type='feed', source_id='feed-1', item_id='item-2',
+            account='CityDesk', title='Beautiful sunset in Odisha',
+            content='Visitors enjoyed the evening view across beaches in Odisha today.',
+            url='https://example.com/odisha-2'
+        )
+        res_loc = analyze(ev_loc_only, profile)
+        self.assertFalse(res_loc['relevant'])
+        self.assertIn('geography', res_loc['matches'])
+        self.assertNotIn('keywords', res_loc['matches'])
+
+        # 3. Backwards compatibility: 'defense_focus' parses to 'keyword_required'
+        legacy_profile = Profile.parse({
+            'name': 'Legacy Profile',
+            'platforms': {'news': True},
+            'dimensions': {
+                'keywords': {'enabled': True, 'values': ['army']}
+            },
+            'relevance': {'mode': 'defense_focus'}
+        })
+        self.assertEqual(legacy_profile.relevance['mode'], 'keyword_required')
+
 
 if __name__ == '__main__':
     unittest.main()
+
 

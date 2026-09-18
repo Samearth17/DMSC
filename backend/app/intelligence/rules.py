@@ -15,14 +15,6 @@ def matches_term(term, text):
     return bool(re.search(pattern, target))
 
 
-DEFENSE_KEYWORDS = {
-    "defense", "defence", "military", "army", "navy", "air force", "cantonment", "security",
-    "border", "drdo", "mod", "troops", "artillery", "command", "regiment", "surveillance",
-    "threat", "ammunition", "corps", "jawans", "anti-terror", "missile", "paramilitary",
-    "crpf", "bsf", "cisf", "itbp", "combat", "patrol", "reconnaissance", "weapons", "radar",
-    "loc", "lac", "warfare", "counter-terror", "special forces", "southern command", "northern command"
-}
-
 DEFAULT_NOISE_TERMS = [
     "ganesh", "ganpati", "visarjan", "bonalu", "festival", "lifestyle", "shopping", "outlet",
     "boutique", "discount", "real estate", "plots for sale", "wedding", "saree", "makeup",
@@ -63,15 +55,21 @@ def analyze(event, profile):
     
     # Topic / domain relevance configuration
     relevance_config = getattr(profile, 'relevance', {}) or {}
-    mode = relevance_config.get('mode', 'defense_focus')
+    mode = relevance_config.get('mode', 'keyword_required')
+    if mode == 'defense_focus':
+        mode = 'keyword_required'
     exclude_terms = list(relevance_config.get('exclude_terms', []))
+
+    # Topic signal: determined by user-configured keywords, entities, and incident_types
+    # If the user has defined topic dimensions, post must match at least one topic dimension (not just location/hashtag)
+    topic_categories = [k for k in ('keywords', 'entities', 'incident_types') if profile.active_terms().get(k)]
+    has_topic_signal = any(k in matches for k in ('keywords', 'entities', 'incident_types')) if topic_categories else bool(matches)
 
     # Noise exclusion check
     excluded_hits = [t for t in exclude_terms if matches_term(t, combined_text)]
-    has_defense_signal = any(k in matches for k in ('keywords', 'entities', 'incident_types')) or any(matches_term(dk, combined_text) for dk in DEFENSE_KEYWORDS)
     
-    if not excluded_hits and mode == 'defense_focus':
-        if not has_defense_signal:
+    if not excluded_hits and mode == 'keyword_required':
+        if not has_topic_signal:
             excluded_hits = [t for t in DEFAULT_NOISE_TERMS if matches_term(t, combined_text)]
 
     active = [k for k, v in profile.active_terms().items() if v]
@@ -79,9 +77,8 @@ def analyze(event, profile):
     
     if mode == 'all_categories':
         is_relevant = bool(active) and not missing and not excluded_hits
-    elif mode == 'defense_focus':
-        # If user has configured defense keywords, or record has defense signals, and not excluded
-        is_relevant = bool(matches) and has_defense_signal and not excluded_hits
+    elif mode == 'keyword_required':
+        is_relevant = bool(matches) and has_topic_signal and not excluded_hits
     else:
         is_relevant = bool(matches) and not excluded_hits
 
@@ -90,18 +87,18 @@ def analyze(event, profile):
     score=sum(weights[k] for k in matches)/max(1,sum(weights[k] for k in active))
     if not is_relevant:
         score = min(score, 0.25)
-    elif has_defense_signal:
+    elif has_topic_signal:
         score = max(score, 0.8)
 
     reasons = []
     if excluded_hits:
-        reasons.append(f"Filtered out noise / non-defense topic: {', '.join(excluded_hits[:3])}")
+        reasons.append(f"Filtered out excluded / noise terms: {', '.join(excluded_hits[:3])}")
     if missing and mode == 'all_categories':
         reasons.append(f"Missing required categories: {', '.join(missing)}")
-    if mode == 'defense_focus' and bool(matches) and not has_defense_signal:
-        reasons.append("Location/hashtag matched but lacks defense/security topic signals")
+    if mode == 'keyword_required' and bool(matches) and not has_topic_signal:
+        reasons.append("Location or hashtag matched, but lacks required keyword or entity topic signals")
     if is_relevant:
-        reasons.append("Relevant defense & security intelligence match")
+        reasons.append("Relevant intelligence match under profile criteria")
 
     transcript_status = event.metadata.get('transcript_status', 'not_configured') if isinstance(event.metadata, dict) else 'not_configured'
     if transcript_text and transcript_status == 'not_configured':
