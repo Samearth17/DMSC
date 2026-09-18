@@ -322,6 +322,28 @@ class EnhancementsTests(unittest.TestCase):
         self.assertTrue(comp['candidate'])
         self.assertGreater(comp['score'], 0.6)
 
+        # Test smart anchor extraction on complex news article
+        secunderabad_text = (
+            "An ex-havildar of the Indian Army has been arrested for last month’s arms heist at 20 Madras Regiment "
+            "at Bolarum in Secunderabad Cantonment, the police have said – a development that comes hours after "
+            "investigators claimed to have traced the weapons to a location in Hyderabad."
+        )
+        sec_anchors = suggest_anchors(secunderabad_text)
+        self.assertIn('Indian Army', sec_anchors)
+        self.assertIn('Madras Regiment', sec_anchors)
+        self.assertIn('Bolarum', sec_anchors)
+
+        # Test resilient comparison with 4 anchors where 3 match
+        sec_seed = validate_seed({
+            'text': secunderabad_text,
+            'url': 'https://indianexpress.com/article/arms-heist',
+            'anchors': ['Secunderabad', 'Bolarum', 'Madras Regiment', 'heist']
+        })
+        other_outlet = "Former Army Havaldar arrested in Bolarum arms theft case; ammunition stolen from Madras Regiment armoury in Secunderabad."
+        sec_comp = compare_seed(sec_seed, other_outlet, 'https://thehindu.com/article/theft')
+        self.assertTrue(sec_comp['candidate'])
+        self.assertEqual(sec_comp['relationship'], 'candidate_related_coverage')
+
         # Test controller related preview & clear_all_values
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, 'test.db')

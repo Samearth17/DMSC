@@ -170,19 +170,20 @@ const templates = {
         <label style="margin:0"><strong>Required Anchor Terms (2–8 terms, one per line)</strong></label>
         <button id="related-suggest-btn" type="button" class="small">Auto-Suggest Anchors</button>
       </div>
-      <p class="muted" style="margin:0 0 8px;font-size:12px">Key distinguishing names, places, and incident terms. All anchors will be matched to eliminate false positives.</p>
-      <textarea id="related-anchors" rows="4" placeholder="Example:&#10;Secunderabad&#10;Defence Cantonment&#10;Bolarum"></textarea>
+      <p class="muted" style="margin:0 0 8px;font-size:12px">Key distinguishing names, places, and incident terms. You can type terms manually or Watchtower will extract them automatically upon search.</p>
+      <textarea id="related-anchors" rows="4" placeholder="Enter 2-8 anchor terms (one per line) or leave blank to auto-extract from your news text..."></textarea>
     </div>
     <h3>Platforms to Scrape</h3>
     <div id="related-platforms" class="platform-grid"></div>
     <label style="margin-top:12px;max-width:320px">Coverage Time Window
       <select id="related-hours">
-        <option value="24" selected>Last 24 hours</option>
+        <option value="24">Last 24 hours</option>
         <option value="48">Last 48 hours</option>
-        <option value="168">Last 7 days</option>
+        <option value="168" selected>Last 7 days</option>
         <option value="720">Last 30 days</option>
       </select>
     </label>
+    <div id="related-error" class="notice-banner" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;color:#991b1b;margin-top:14px;padding:10px 14px;border-radius:6px;font-size:13px;font-weight:500;"></div>
     <div class="actions" style="margin-top:16px">
       <button id="related-preview">Preview Queries</button>
       <button id="related-run" class="primary">Scrape & Find Related Coverage</button>
@@ -223,7 +224,7 @@ async function navigate(view) {
   for (const s of document.querySelectorAll('.view')) s.hidden = s.id !== 'view-' + view;
   for (const b of document.querySelectorAll('.nav')) b.classList.toggle('active', b.dataset.view === view);
   $('view-title').textContent = views[view];
-  if (view === 'related') renderRelatedPlatforms();
+  if (view === 'related') { renderRelatedPlatforms(); initRelatedView(); }
   if (view === 'instagram') await initInstagramView();
   if (view === 'history') await history();
   if (view === 'records') await search();
@@ -664,6 +665,72 @@ function renderRelatedPlatforms() {
   }
 }
 
+function showRelatedError(msg) {
+  const errBox = $('related-error');
+  if (errBox) {
+    errBox.textContent = msg;
+    errBox.style.display = 'block';
+  }
+  notice(msg);
+}
+
+function clearRelatedError() {
+  const errBox = $('related-error');
+  if (errBox) {
+    errBox.textContent = '';
+    errBox.style.display = 'none';
+  }
+}
+
+async function autoSuggestAnchors(text, filename) {
+  if (!text || text.trim().length < 20) return;
+  try {
+    const res = await api('/api/related/suggest-anchors', { text: text.trim() });
+    if (res.anchors && res.anchors.length) {
+      $('related-anchors').value = res.anchors.slice(0, 6).join('\n');
+      notice(filename ? `Loaded "${filename}" and extracted ${res.anchors.length} anchor terms.` : `Extracted ${res.anchors.length} anchor terms from news text.`);
+      clearRelatedError();
+    }
+  } catch {}
+}
+
+function initRelatedView() {
+  const fileInput = $('related-file');
+  if (fileInput && !fileInput.dataset.bound) {
+    fileInput.dataset.bound = 'true';
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      if (file.size > 80000 || !/\.(txt|md)$/i.test(file.name)) {
+        showRelatedError('Upload a UTF-8 .txt or .md file up to 80 KB.');
+        return;
+      }
+      const text = (await file.text()).slice(0, 20000);
+      $('related-text').value = text;
+      clearRelatedError();
+      await autoSuggestAnchors(text, file.name);
+    });
+  }
+
+  const textArea = $('related-text');
+  if (textArea && !textArea.dataset.bound) {
+    textArea.dataset.bound = 'true';
+    let timer = null;
+    const trigger = () => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const t = textArea.value.trim();
+        const anchorsField = $('related-anchors');
+        if (t.length >= 20 && anchorsField && !anchorsField.value.trim()) {
+          await autoSuggestAnchors(t);
+        }
+      }, 500);
+    };
+    textArea.addEventListener('input', trigger);
+    textArea.addEventListener('paste', () => setTimeout(trigger, 50));
+  }
+}
+
 function relatedPayload() {
   const platforms = {};
   if ($('related-platforms')) {
@@ -675,7 +742,7 @@ function relatedPayload() {
   return {
     seed: { text, url, anchors },
     platforms,
-    time_window: { hours: Number($('related-hours')?.value || 24), timezone: 'Asia/Kolkata' }
+    time_window: { hours: Number($('related-hours')?.value || 168), timezone: 'Asia/Kolkata' }
   };
 }
 
@@ -695,9 +762,11 @@ bind('clear-all-values-btn', async () => {
 });
 
 bind('related-suggest-btn', async () => {
-  const text = $('related-text').value.trim();
+  clearRelatedError();
+  const text = $('related-text') ? $('related-text').value.trim() : '';
   if (!text || text.length < 20) {
-    notice('Please paste or upload at least 20 characters of news text first to suggest anchors.');
+    showRelatedError('Please paste or upload at least 20 characters of news text first to suggest anchors.');
+    $('related-text')?.focus();
     return;
   }
   try {
@@ -706,22 +775,38 @@ bind('related-suggest-btn', async () => {
       $('related-anchors').value = res.anchors.slice(0, 6).join('\n');
       notice(`Auto-suggested ${res.anchors.length} anchor terms from the news text.`);
     } else {
-      notice('Could not extract distinguishing anchors. Please type 2-8 anchor terms manually.');
+      showRelatedError('Could not extract distinguishing anchors. Please type 2-8 anchor terms manually.');
     }
   } catch (e) {
-    notice('Error suggesting anchors: ' + e.message);
+    showRelatedError('Error suggesting anchors: ' + e.message);
   }
 });
 
 bind('related-preview', async () => {
-  const payload = relatedPayload();
+  clearRelatedError();
+  let payload = relatedPayload();
   if (!payload.seed.text || payload.seed.text.length < 20) {
-    notice('Paste or upload at least 20 characters of news text.');
+    showRelatedError('Please paste or upload at least 20 characters of news text first.');
+    $('related-text')?.focus();
     return;
   }
+  // If anchors are empty or fewer than 2, auto-extract them seamlessly
   if (payload.seed.anchors.length < 2) {
-    notice('Enter at least 2 distinguishing anchor terms (names, places, incident).');
-    return;
+    try {
+      const res = await api('/api/related/suggest-anchors', { text: payload.seed.text });
+      if (res.anchors && res.anchors.length >= 2) {
+        $('related-anchors').value = res.anchors.slice(0, 6).join('\n');
+        payload = relatedPayload();
+        notice(`Auto-suggested ${res.anchors.length} anchor terms from the news text.`);
+      } else {
+        showRelatedError('Enter at least 2 distinguishing anchor terms (names, places, incident).');
+        $('related-anchors')?.focus();
+        return;
+      }
+    } catch (e) {
+      showRelatedError('Error extracting anchors: ' + e.message);
+      return;
+    }
   }
   try {
     const result = await api('/api/related/preview', payload);
@@ -738,20 +823,50 @@ bind('related-preview', async () => {
       box.append(node('p', 'No queries generated. Please select at least one platform.'));
     }
   } catch (e) {
-    notice(e.message);
+    showRelatedError(e.message);
   }
 });
 
 bind('related-run', async () => {
-  const payload = relatedPayload();
+  clearRelatedError();
+  let payload = relatedPayload();
   if (!payload.seed.text || payload.seed.text.length < 20) {
-    notice('Paste or upload at least 20 characters of news text.');
+    showRelatedError('Please paste or upload at least 20 characters of news text first.');
+    $('related-text')?.focus();
     return;
   }
+  // If anchors are empty or fewer than 2, auto-extract them seamlessly
   if (payload.seed.anchors.length < 2) {
-    notice('Enter at least 2 distinguishing anchor terms (names, places, incident).');
+    try {
+      const res = await api('/api/related/suggest-anchors', { text: payload.seed.text });
+      if (res.anchors && res.anchors.length >= 2) {
+        $('related-anchors').value = res.anchors.slice(0, 6).join('\n');
+        payload = relatedPayload();
+        notice(`Auto-extracted ${res.anchors.length} anchor terms from news text.`);
+      } else {
+        showRelatedError('Enter at least 2 distinguishing anchor terms (names, places, incident).');
+        $('related-anchors')?.focus();
+        return;
+      }
+    } catch (e) {
+      showRelatedError('Error extracting anchors: ' + e.message);
+      return;
+    }
+  }
+
+  // Ensure at least one platform is checked
+  if (!Object.values(payload.platforms).some(Boolean)) {
+    showRelatedError('Please select at least one platform to scrape (e.g. News, Web, or YouTube).');
     return;
   }
+
+  const runBtn = $('related-run');
+  const origBtnText = runBtn ? runBtn.textContent : 'Scrape & Find Related Coverage';
+  if (runBtn) {
+    runBtn.disabled = true;
+    runBtn.textContent = 'Scraping platforms for coverage...';
+  }
+
   try {
     const result = await api('/api/related/run', payload);
     state.selectedRun = result.run_id;
@@ -759,10 +874,14 @@ bind('related-run', async () => {
     const loadingCard = node('div', undefined, 'panel');
     loadingCard.innerHTML = '<h3>Scraping all platforms for related coverage...</h3><p class="muted">Scanning News, YouTube, Web, and social sources for matching anchor terms...</p>';
     $('related-results').append(loadingCard);
+    $('related-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
     notice('Related coverage search started. Scraping platforms now...');
 
     const pollRelated = async () => {
-      if (!document.contains($('related-results'))) return;
+      if (!document.contains($('related-results'))) {
+        if (runBtn) { runBtn.disabled = false; runBtn.textContent = origBtnText; }
+        return;
+      }
       try {
         const report = await api('/api/audits/' + result.run_id);
         const box = $('related-results');
@@ -775,6 +894,7 @@ bind('related-run', async () => {
           setTimeout(pollRelated, 2000);
           return;
         }
+        if (runBtn) { runBtn.disabled = false; runBtn.textContent = origBtnText; }
         const records = await api('/api/records?run_id=' + encodeURIComponent(result.run_id));
         const relevant = records.filter(i => i.analysis.relevant).sort((a, b) => (b.analysis.relevance_score || 0) - (a.analysis.relevance_score || 0));
         box.append(node('p', `Found ${relevant.length} related candidates (${records.length - relevant.length} records filtered out).`));
@@ -791,42 +911,16 @@ bind('related-run', async () => {
           box.append(det);
         }
       } catch (e) {
-        notice(e.message);
+        if (runBtn) { runBtn.disabled = false; runBtn.textContent = origBtnText; }
+        showRelatedError(e.message);
       }
     };
     pollRelated();
   } catch (e) {
-    notice(e.message);
+    if (runBtn) { runBtn.disabled = false; runBtn.textContent = origBtnText; }
+    showRelatedError(e.message);
   }
 });
-
-// File upload for related news
-setTimeout(() => {
-  const fileInput = $('related-file');
-  if (fileInput) {
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      if (file.size > 80000 || !/\.(txt|md)$/i.test(file.name)) {
-        notice('Upload a UTF-8 .txt or .md file up to 80 KB.');
-        return;
-      }
-      const text = (await file.text()).slice(0, 20000);
-      $('related-text').value = text;
-      try {
-        const res = await api('/api/related/suggest-anchors', { text });
-        if (res.anchors && res.anchors.length) {
-          $('related-anchors').value = res.anchors.slice(0, 6).join('\n');
-          notice(`Loaded "${file.name}" and auto-suggested ${res.anchors.length} anchors.`);
-        } else {
-          notice(`Loaded "${file.name}". Please enter 2-8 anchor terms below.`);
-        }
-      } catch {
-        notice(`Loaded "${file.name}". Please enter 2-8 anchor terms below.`);
-      }
-    });
-  }
-}, 500);
 
 
 /* ── Dashboard & Reports ── */
