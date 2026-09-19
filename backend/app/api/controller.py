@@ -187,10 +187,8 @@ class Controller:
             if self.running:
                 raise ValueError('Wait for the audit before requesting Instagram scraping')
             connector = self.connectors.get('instagram')
-            if not connector or not connector.available()[0]:
-                return {'error': 'instaloader_not_installed'}
-            if not connector.access:
-                return {'error': 'instagram_not_configured'}
+            if not connector:
+                return {'error': 'instagram_not_available'}
             payload = {
                 'operation': 'scrape',
                 'scrape_type': scrape_type,
